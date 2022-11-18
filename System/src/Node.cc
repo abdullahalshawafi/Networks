@@ -10,6 +10,7 @@ void Node::initialize()
 
 void Node::handleMessage(cMessage *msg)
 {
+    // Create output.txt file to log the messages events into it
     std::ofstream outputFile("../output/output.txt", std::ios_base::app);
 
     // If the message is the start signal
@@ -56,9 +57,10 @@ void Node::handleMessage(cMessage *msg)
     // If the message is an ACK signal, then send the next message
     else if (strcmp(msg->getName(), ACK_SIGNAL) == 0)
     {
-        // Send the next message to the other node if we didn't reach the end of the vector yet
+        // If we didn't reach the end of the vector yet
         if (this->index < this->data.size())
         {
+            // Send the next message to the other node
             cMessage *msg = new cMessage(this->data[this->index++].second.c_str());
             send(msg, NODE_OUTPUT);
 
