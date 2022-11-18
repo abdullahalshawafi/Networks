@@ -30,3 +30,10 @@
 *.exe
 *.out
 *.app
+
+# Other files
+.qtenvrc
+System/out/
+System/src/Makefile
+System/src/System
+System/src/System_dbg
