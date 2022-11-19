@@ -35,20 +35,20 @@ void Node::handleMessage(cMessage *msg)
         while(std::getline(inputFile, inputMessage))
         {
             // The first part will be errors
-            std::string errors = inputMessage.substr(0, ERRORS_BITS_COUNT);
+            std::string errors = strtok((char *)inputMessage.c_str(), " ");
 
             // The rest of the data will be the message to be sent
-            std::string message = inputMessage.substr(ERRORS_BITS_COUNT + 1);
+            std::string message = inputMessage.substr(errors.size() + 1);
 
             // Store the errors-message pair in the data vector
-            this->data.emplace_back(std::make_pair(errors, message));
+            data.emplace_back(std::make_pair(errors, message));
         }
 
         // Close the input file
         inputFile.close();
 
         // Send the first message to the other node
-        cMessage *msg = new cMessage(this->data[this->index++].second.c_str());
+        msg->setName(data[index++].second.c_str());
         send(msg, NODE_OUTPUT);
 
         // Write the sent message to the output file
@@ -58,14 +58,23 @@ void Node::handleMessage(cMessage *msg)
     else if (strcmp(msg->getName(), ACK_SIGNAL) == 0)
     {
         // If we didn't reach the end of the vector yet
-        if (this->index < this->data.size())
+        if (index < data.size())
         {
             // Send the next message to the other node
-            cMessage *msg = new cMessage(this->data[this->index++].second.c_str());
+            msg->setName(data[index++].second.c_str());
             send(msg, NODE_OUTPUT);
 
             // Write the sent message to the output file
             outputFile << "Sent: " << msg->getName() << endl;
+        }
+        // Else, finish the simulation
+        else
+        {
+            // Delete the message object
+            cancelAndDelete(msg);
+
+            // Finish the simulation
+            finish();
         }
     }
     else
@@ -74,7 +83,7 @@ void Node::handleMessage(cMessage *msg)
         outputFile << "Received: " << msg->getName() << endl;
 
         // Send an ACK signal to the sender node to send the next message
-        cMessage *msg = new cMessage(ACK_SIGNAL);
+        msg->setName(ACK_SIGNAL);
         send(msg, NODE_OUTPUT);
     }
 

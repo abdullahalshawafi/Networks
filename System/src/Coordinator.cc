@@ -24,8 +24,6 @@ void Coordinator::initialize()
     // Close the input file
     inputFile.close();
 
-    std::cout << startingNode << ", " << startingTime << endl;
-
     // Send a start message to the starting node that was read from the input file
     cMessage *msg = new cMessage(START_SIGNAL);
     send(msg, COORDINATOR_OUTPUTS, startingNode);
