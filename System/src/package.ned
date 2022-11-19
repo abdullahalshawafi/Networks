@@ -4,6 +4,14 @@ package system;
 
 network Network
 {
+    parameters:
+        int WS = default(5);
+		int TO = default(10);
+		double PT = default(0.5);
+		double TD = default(1.0);
+		double ED = default(4.0);
+		double DD = default(0.1);
+		double LP = default(0.1);
     @display("bgb=609,286");
     submodules:
         Node0: Node {
