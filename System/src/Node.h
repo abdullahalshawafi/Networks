@@ -6,6 +6,7 @@
 #include <fstream>
 #include <vector>
 #include <utility>
+#include <bitset>
 
 using namespace omnetpp;
 
@@ -21,6 +22,7 @@ protected:
     virtual void initialize();
     virtual void handleMessage(cMessage *msg);
     std::string framing(std::string payload);
+    char getParity(std::string frame);
 };
 
 #endif

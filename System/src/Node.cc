@@ -47,8 +47,13 @@ void Node::handleMessage(cMessage *msg)
         // Close the input file
         inputFile.close();
 
-        // Send the first byte stuffed message (frame) to the other node
+        // Apply byte stuffing framing to the message payload
         std::string frame = Node::framing(data[index++].second);
+
+        // Append the parity character to the end of the frame before sending
+        frame += Node::getParity(frame);
+
+        /// Send the first frame to the other node
         msg->setName(frame.c_str());
         send(msg, NODE_OUTPUT);
 
@@ -61,8 +66,13 @@ void Node::handleMessage(cMessage *msg)
         // If we didn't reach the end of the vector yet
         if (index < data.size())
         {
-            // Send the next byte stuffed message (frame) to the other node
+            // Apply byte stuffing framing to the message payload
             std::string frame = Node::framing(data[index++].second);
+
+            // Append the parity character to the end of the frame before sending
+            frame += Node::getParity(frame);
+
+            /// Send the current frame to the other node
             msg->setName(frame.c_str());
             send(msg, NODE_OUTPUT);
 
@@ -119,4 +129,23 @@ std::string Node::framing(std::string payload)
     frame += FLAG_BYTE;
 
     return frame;
+}
+
+char Node::getParity(std::string frame)
+{
+    // Initialize the parity byte by 8 0s
+    std::bitset<8> parityByte(0);
+
+    // Loop through each character in the frame
+    for (auto c : frame)
+    {
+        // Convert the character to bits
+        std::bitset<8> characterByte(c);
+
+        // XOR the parity with the character to calculate the even parity
+        parityByte ^= characterByte;
+    }
+
+    // Convert the parity byte to ASCII character and return it
+    return (char)parityByte.to_ulong();
 }
