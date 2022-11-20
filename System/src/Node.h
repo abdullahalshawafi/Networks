@@ -23,6 +23,7 @@ protected:
     virtual void handleMessage(cMessage *msg);
     std::string framing(std::string payload);
     char getParity(std::string frame);
+    bool checkParity(std::string frame);
 };
 
 #endif

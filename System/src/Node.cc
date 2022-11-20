@@ -92,8 +92,17 @@ void Node::handleMessage(cMessage *msg)
     // Logic for the receiving node
     else
     {
-        // Write the message payload to the output file
-        outputFile << "Received: " << msg->getName() << endl;
+        std::string frame = msg->getName();
+
+        // Check if the parity byte is error free
+        if (Node::checkParity(frame))
+        {
+            outputFile << "Received: " << frame << endl;
+        }
+        else
+        {
+            outputFile << "Error detected!" << endl;
+        }
 
         // Send an ACK signal to the sender node to send the next message
         msg->setName(ACK_SIGNAL);
@@ -148,4 +157,23 @@ char Node::getParity(std::string frame)
 
     // Convert the parity byte to ASCII character and return it
     return (char)parityByte.to_ulong();
+}
+
+bool Node::checkParity(std::string frame)
+{
+    // Initialize the parity byte by 8 0s
+    std::bitset<8> parityByte(0);
+
+    // Loop through each character in the frame except for the last one (parity character)
+    for (int i = 0; i < frame.size() - 1; i++)
+    {
+        // Convert the character to bits
+        std::bitset<8> characterByte(frame[i]);
+
+        // XOR the parity with the character to calculate the even parity
+        parityByte ^= characterByte;
+    }
+
+    // Check if the calculated parity is equal to the last character in the frame and return the result
+    return (char)parityByte.to_ulong() == frame[frame.size() - 1];
 }
