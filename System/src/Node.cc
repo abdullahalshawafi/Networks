@@ -79,13 +79,11 @@ void Node::handleMessage(cMessage *msg)
             finish();
         }
     }
+    // Logic for the receiving node
     else
     {
-        // Convert the received frame back to the original message payload
-        std::string payload = Node::convertFrameToPayload(std::string(msg->getName()));
-
         // Write the message payload to the output file
-        outputFile << "Received: " << payload << endl;
+        outputFile << "Received: " << msg->getName() << endl;
 
         // Send an ACK signal to the sender node to send the next message
         msg->setName(ACK_SIGNAL);
@@ -121,51 +119,4 @@ std::string Node::framing(std::string payload)
     frame += FLAG_BYTE;
 
     return frame;
-}
-
-std::string Node::convertFrameToPayload(std::string frame)
-{
-    std::string payload = "";
-
-    // A flag to check if the character before was an escape character
-    bool wasPreceededByEscape = false;
-
-    // Loop through the frame characters
-    for (int i = 0; i < frame.size(); i++)
-    {
-        // If the first character is a flag byte, then ignore it
-        if (i == 0 && frame[i] == FLAG_BYTE)
-        {
-            continue;
-        }
-
-        // If the last character is a flag byte and it wasn't preceeded
-        // by an escape character, then ignore it
-        if (i == frame.size() - 1 && frame[i] == FLAG_BYTE && !wasPreceededByEscape)
-        {
-            continue;
-        }
-
-        // If the current character is an escape character and it wasn't
-        // preceeded by another escape character, that means that the current
-        // character is used to ignore the next character
-        if (frame[i] == ESCAPE_CHAR && !wasPreceededByEscape)
-        {
-            wasPreceededByEscape = true;
-            continue;
-        }
-
-        // If the current character is either a flag or an escape character
-        // and it was preceeded by an escape character, then reset the wasPreceededByEscape
-        // flag
-        if ((frame[i] == FLAG_BYTE || frame[i] == ESCAPE_CHAR) && wasPreceededByEscape)
-        {
-            wasPreceededByEscape = false;
-        }
-
-        // Add the current character to the payload
-        payload += frame[i];
-    }
-
-    return payload;
 }

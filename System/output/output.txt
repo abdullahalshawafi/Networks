@@ -1,4 +1,4 @@
 Sent: $hello world$
-Received: hello world
+Received: $hello world$
 Sent: $hi there$
-Received: hi there
+Received: $hi there$
