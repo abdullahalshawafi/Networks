@@ -16,4 +16,7 @@
 #define START_SIGNAL "start"
 #define ACK_SIGNAL "next_message"
 
+#define FLAG_BYTE '$'
+#define ESCAPE_CHAR '/'
+
 #endif /* CONSTANTS_H_ */

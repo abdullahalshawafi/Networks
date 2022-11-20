@@ -47,8 +47,9 @@ void Node::handleMessage(cMessage *msg)
         // Close the input file
         inputFile.close();
 
-        // Send the first message to the other node
-        msg->setName(data[index++].second.c_str());
+        // Send the first byte stuffed message (frame) to the other node
+        std::string frame = Node::framing(data[index++].second);
+        msg->setName(frame.c_str());
         send(msg, NODE_OUTPUT);
 
         // Write the sent message to the output file
@@ -60,8 +61,9 @@ void Node::handleMessage(cMessage *msg)
         // If we didn't reach the end of the vector yet
         if (index < data.size())
         {
-            // Send the next message to the other node
-            msg->setName(data[index++].second.c_str());
+            // Send the next byte stuffed message (frame) to the other node
+            std::string frame = Node::framing(data[index++].second);
+            msg->setName(frame.c_str());
             send(msg, NODE_OUTPUT);
 
             // Write the sent message to the output file
@@ -79,8 +81,11 @@ void Node::handleMessage(cMessage *msg)
     }
     else
     {
-        // Write the received message to the output file
-        outputFile << "Received: " << msg->getName() << endl;
+        // Convert the received frame back to the original message payload
+        std::string payload = Node::convertFrameToPayload(std::string(msg->getName()));
+
+        // Write the message payload to the output file
+        outputFile << "Received: " << payload << endl;
 
         // Send an ACK signal to the sender node to send the next message
         msg->setName(ACK_SIGNAL);
@@ -89,4 +94,78 @@ void Node::handleMessage(cMessage *msg)
 
     // Close the output file
     outputFile.close();
+}
+
+std::string Node::framing(std::string payload)
+{
+    std::string frame = "";
+
+    // Start the frame be the flag byte
+    frame += FLAG_BYTE;
+
+    // Go through the message payload character by character
+    for (auto c : payload)
+    {
+        // If the current character is either a flag or escape character
+        if (c == FLAG_BYTE || c == ESCAPE_CHAR)
+        {
+            // Stuff the escape character before it
+            frame += ESCAPE_CHAR;
+        }
+
+        // Add the character to the frame
+        frame += c;
+    }
+
+    // End the frame by the flag byte
+    frame += FLAG_BYTE;
+
+    return frame;
+}
+
+std::string Node::convertFrameToPayload(std::string frame)
+{
+    std::string payload = "";
+
+    // A flag to check if the character before was an escape character
+    bool wasPreceededByEscape = false;
+
+    // Loop through the frame characters
+    for (int i = 0; i < frame.size(); i++)
+    {
+        // If the first character is a flag byte, then ignore it
+        if (i == 0 && frame[i] == FLAG_BYTE)
+        {
+            continue;
+        }
+
+        // If the last character is a flag byte and it wasn't preceeded
+        // by an escape character, then ignore it
+        if (i == frame.size() - 1 && frame[i] == FLAG_BYTE && !wasPreceededByEscape)
+        {
+            continue;
+        }
+
+        // If the current character is an escape character and it wasn't
+        // preceeded by another escape character, that means that the current
+        // character is used to ignore the next character
+        if (frame[i] == ESCAPE_CHAR && !wasPreceededByEscape)
+        {
+            wasPreceededByEscape = true;
+            continue;
+        }
+
+        // If the current character is either a flag or an escape character
+        // and it was preceeded by an escape character, then reset the wasPreceededByEscape
+        // flag
+        if ((frame[i] == FLAG_BYTE || frame[i] == ESCAPE_CHAR) && wasPreceededByEscape)
+        {
+            wasPreceededByEscape = false;
+        }
+
+        // Add the current character to the payload
+        payload += frame[i];
+    }
+
+    return payload;
 }

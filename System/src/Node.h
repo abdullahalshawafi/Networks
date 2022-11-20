@@ -20,6 +20,8 @@ private:
 protected:
     virtual void initialize();
     virtual void handleMessage(cMessage *msg);
+    std::string framing(std::string payload);
+    std::string convertFrameToPayload(std::string frame);
 };
 
 #endif
