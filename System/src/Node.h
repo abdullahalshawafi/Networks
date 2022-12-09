@@ -18,8 +18,13 @@ private:
 
     // A pointer to the index of the message that should be sent
     int index = 0;
+
     // initialize the sequence number to 0
     int sequenceNumber = 0;
+
+    // Start of window
+    int start = 0;
+
 protected:
     virtual void initialize();
     virtual void handleMessage(cMessage *msg);

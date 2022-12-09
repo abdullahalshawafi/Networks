@@ -1,3 +1,5 @@
 Sent: $hello world$
-Received: $hello world$ with no errors
+Received: $hello world$
 Sent: $hi there$
+Received: 
+Received: 

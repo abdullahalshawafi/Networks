@@ -13,7 +13,20 @@ void Node::handleMessage(cMessage *msg)
 {
     // Cast the message to Packet_Base
     Packet_Base *packet = check_and_cast<Packet_Base *>(msg);
-    
+
+    if (msg->isSelfMessage())
+    {
+        int msgIndex = std::atoi(msg->getName());
+        EV << "Checking timeout\n";
+        if (msgIndex < this->start)
+            return;
+        else
+        {
+            EV << "Timed out\n";
+            this->start = msgIndex;
+            this->index = msgIndex;
+        }
+    }
     // Create output.txt file to log the messages events into it
     std::ofstream outputFile("../output/output.txt", std::ios_base::app);
 
@@ -36,7 +49,7 @@ void Node::handleMessage(cMessage *msg)
         }
 
         // Read messages from the input file
-        while(std::getline(inputFile, inputMessage))
+        while (std::getline(inputFile, inputMessage))
         {
             // The first part will be errors
             std::string errors = strtok((char *)inputMessage.c_str(), " ");
@@ -51,20 +64,22 @@ void Node::handleMessage(cMessage *msg)
         // Close the input file
         inputFile.close();
 
-        //// Construct the packet
+        /* Construct the packet */
         // 1.Apply byte stuffing framing to the message payload
         std::string frame = Node::framing(data[index++].second);
-        std::cout << "Send Frame: " << frame << endl;
         // 2.Set the trailer to the parity byte
         packet->setTrailer(Node::getParity(frame));
-        std::cout << "Send Parity: " << packet->getTrailer() << endl;
         // 3.Set the payload to the frame
         packet->setPayload(frame.c_str());
         // 4.Set the header to the sequence number
         packet->setHeader(sequenceNumber++);
-        
-        // Send the first frame to the other node
+
+        // Send the first packet to the other node
         send(packet, NODE_OUTPUT);
+
+        int TO = getParentModule()->par("TO").intValue();
+        Packet_Base *timeout = new Packet_Base(std::to_string(index).c_str());
+        scheduleAt(simTime() + exponential(TO), timeout);
 
         // Write the sent message to the output file
         outputFile << "Sent: " << packet->getPayload() << endl;
@@ -76,9 +91,9 @@ void Node::handleMessage(cMessage *msg)
         if (index < data.size())
         {
 
-            //// Construct the packet
+            /* Construct the packet */
             // 1.Apply byte stuffing framing to the message payload
-            std::string  frame = Node::framing(data[index++].second);
+            std::string frame = Node::framing(data[index++].second);
             // 2.Set the trailer to the parity byte
             packet->setTrailer(Node::getParity(frame));
             // 3.Set the payload to the frame
@@ -86,8 +101,12 @@ void Node::handleMessage(cMessage *msg)
             // 4.Set the header to the sequence number
             packet->setHeader(sequenceNumber++);
 
-            // Send the next frame to the other node
+            // Send the next packet to the other node
             send(packet, NODE_OUTPUT);
+
+            int TO = getParentModule()->par("TO").intValue();
+            Packet_Base *timeout = new Packet_Base(std::to_string(index).c_str());
+            scheduleAt(simTime() + exponential(TO), timeout);
 
             // Write the sent message to the output file
             outputFile << "Sent: " << packet->getPayload() << endl;
@@ -107,9 +126,6 @@ void Node::handleMessage(cMessage *msg)
     {
         std::string frame = packet->getPayload();
         char parity = packet->getTrailer();
-
-        std::cout << "Received Frame: " << frame << endl;
-        std::cout << "Received Parity: " << parity << endl;
 
         // Check if the parity byte is error free
         if (Node::checkParity(frame, parity))

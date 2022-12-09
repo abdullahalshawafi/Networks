@@ -5,13 +5,13 @@ package system;
 network Network
 {
     parameters:
-        int WS = default(5);
-		int TO = default(10);
-		double PT = default(0.5);
-		double TD = default(1.0);
-		double ED = default(4.0);
-		double DD = default(0.1);
-		double LP = default(0.1);
+        int WS = default(5);		// sender window size
+		int TO = default(10);		// timeout
+		double PT = default(0.5);	// processing time
+		double TD = default(1.0);	// transmission delay
+		double ED = default(4.0);	// error delay
+		double DD = default(0.1);	// duplication delay
+		double LP = default(0.1);	// loss probability
     @display("bgb=609,286");
     submodules:
         Node0: Node {
