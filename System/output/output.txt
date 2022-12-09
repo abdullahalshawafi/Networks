@@ -1,4 +1,3 @@
-Sent: $hello world$ 
-Received: $hello world$ 
-Sent: $hi there$O
-Received: $hi there$O
+Sent: $hello world$
+Received: $hello world$ with no errors
+Sent: $hi there$

@@ -1,0 +1,6 @@
+{
+    "ros.distro": "noetic",
+    "files.associations": {
+        "bitset": "cpp"
+    }
+}

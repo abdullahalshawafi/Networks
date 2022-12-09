@@ -1,5 +1,6 @@
 #include "Node.h"
 #include "Constants.h"
+#include "Packet_m.h"
 
 Define_Module(Node);
 
@@ -10,11 +11,14 @@ void Node::initialize()
 
 void Node::handleMessage(cMessage *msg)
 {
+    // Cast the message to Packet_Base
+    Packet_Base *packet = check_and_cast<Packet_Base *>(msg);
+    
     // Create output.txt file to log the messages events into it
     std::ofstream outputFile("../output/output.txt", std::ios_base::app);
 
     // If the message is the start signal
-    if (strcmp(msg->getName(), START_SIGNAL) == 0)
+    if (strcmp(packet->getPayload(), START_SIGNAL) == 0)
     {
         std::string inputMessage;
 
@@ -47,43 +51,52 @@ void Node::handleMessage(cMessage *msg)
         // Close the input file
         inputFile.close();
 
-        // Apply byte stuffing framing to the message payload
+        //// Construct the packet
+        // 1.Apply byte stuffing framing to the message payload
         std::string frame = Node::framing(data[index++].second);
-
-        // Append the parity character to the end of the frame before sending
-        frame += Node::getParity(frame);
-
-        /// Send the first frame to the other node
-        msg->setName(frame.c_str());
-        send(msg, NODE_OUTPUT);
+        std::cout << "Send Frame: " << frame << endl;
+        // 2.Set the trailer to the parity byte
+        packet->setTrailer(Node::getParity(frame));
+        std::cout << "Send Parity: " << packet->getTrailer() << endl;
+        // 3.Set the payload to the frame
+        packet->setPayload(frame.c_str());
+        // 4.Set the header to the sequence number
+        packet->setHeader(sequenceNumber++);
+        
+        // Send the first frame to the other node
+        send(packet, NODE_OUTPUT);
 
         // Write the sent message to the output file
-        outputFile << "Sent: " << msg->getName() << endl;
+        outputFile << "Sent: " << packet->getPayload() << endl;
     }
     // If the message is an ACK signal, then send the next message
-    else if (strcmp(msg->getName(), ACK_SIGNAL) == 0)
+    else if (packet->getFrame_type() == ACK_SIGNAL)
     {
         // If we didn't reach the end of the vector yet
         if (index < data.size())
         {
-            // Apply byte stuffing framing to the message payload
-            std::string frame = Node::framing(data[index++].second);
 
-            // Append the parity character to the end of the frame before sending
-            frame += Node::getParity(frame);
+            //// Construct the packet
+            // 1.Apply byte stuffing framing to the message payload
+            std::string  frame = Node::framing(data[index++].second);
+            // 2.Set the trailer to the parity byte
+            packet->setTrailer(Node::getParity(frame));
+            // 3.Set the payload to the frame
+            packet->setPayload(frame.c_str());
+            // 4.Set the header to the sequence number
+            packet->setHeader(sequenceNumber++);
 
-            /// Send the current frame to the other node
-            msg->setName(frame.c_str());
-            send(msg, NODE_OUTPUT);
+            // Send the next frame to the other node
+            send(packet, NODE_OUTPUT);
 
             // Write the sent message to the output file
-            outputFile << "Sent: " << msg->getName() << endl;
+            outputFile << "Sent: " << packet->getPayload() << endl;
         }
         // Else, finish the simulation
         else
         {
             // Delete the message object
-            cancelAndDelete(msg);
+            cancelAndDelete(packet);
 
             // Finish the simulation
             finish();
@@ -92,10 +105,14 @@ void Node::handleMessage(cMessage *msg)
     // Logic for the receiving node
     else
     {
-        std::string frame = msg->getName();
+        std::string frame = packet->getPayload();
+        char parity = packet->getTrailer();
+
+        std::cout << "Received Frame: " << frame << endl;
+        std::cout << "Received Parity: " << parity << endl;
 
         // Check if the parity byte is error free
-        if (Node::checkParity(frame))
+        if (Node::checkParity(frame, parity))
         {
             outputFile << "Received: " << frame << endl;
         }
@@ -105,8 +122,8 @@ void Node::handleMessage(cMessage *msg)
         }
 
         // Send an ACK signal to the sender node to send the next message
-        msg->setName(ACK_SIGNAL);
-        send(msg, NODE_OUTPUT);
+        packet->setFrame_type(ACK_SIGNAL);
+        send(packet, NODE_OUTPUT);
     }
 
     // Close the output file
@@ -159,13 +176,13 @@ char Node::getParity(std::string frame)
     return (char)parityByte.to_ulong();
 }
 
-bool Node::checkParity(std::string frame)
+bool Node::checkParity(std::string frame, char expectedParity)
 {
     // Initialize the parity byte by 8 0s
     std::bitset<8> parityByte(0);
 
-    // Loop through each character in the frame except for the last one (parity character)
-    for (int i = 0; i < frame.size() - 1; i++)
+    // Loop through each character in the frame
+    for (int i = 0; i < frame.size(); i++)
     {
         // Convert the character to bits
         std::bitset<8> characterByte(frame[i]);
@@ -174,6 +191,6 @@ bool Node::checkParity(std::string frame)
         parityByte ^= characterByte;
     }
 
-    // Check if the calculated parity is equal to the last character in the frame and return the result
-    return (char)parityByte.to_ulong() == frame[frame.size() - 1];
+    // Check if the calculated parity is equal to the expected parity
+    return (char)parityByte.to_ulong() == expectedParity;
 }

@@ -1,5 +1,6 @@
 #include "Coordinator.h"
 #include "Constants.h"
+#include "Packet_m.h"
 
 Define_Module(Coordinator);
 
@@ -25,8 +26,9 @@ void Coordinator::initialize()
     inputFile.close();
 
     // Send a start message to the starting node that was read from the input file
-    cMessage *msg = new cMessage(START_SIGNAL);
-    send(msg, COORDINATOR_OUTPUTS, startingNode);
+    Packet_Base *packet = new Packet_Base(START_SIGNAL);
+    packet->setPayload(START_SIGNAL);
+    send(packet, COORDINATOR_OUTPUTS, startingNode);
 }
 
 void Coordinator::handleMessage(cMessage *msg)

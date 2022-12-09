@@ -14,7 +14,9 @@
 #define NODE_OUTPUT "node_gate_out"
 
 #define START_SIGNAL "start"
-#define ACK_SIGNAL "next_message"
+#define DATA_SIGNAL 0
+#define ACK_SIGNAL 1
+#define NACK_SIGNAL 2
 
 #define FLAG_BYTE '$'
 #define ESCAPE_CHAR '/'

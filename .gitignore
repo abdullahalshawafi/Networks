@@ -37,3 +37,6 @@ System/out/
 System/src/Makefile
 System/src/System
 System/src/System_dbg
+System/output/output.txt
+System/.settings/*.xml
+System/simulations/results/*.sca
