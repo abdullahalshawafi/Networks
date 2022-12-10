@@ -1,5 +1,4 @@
 Received: $hello world$ with sequence number 0
 Sent: ACK 1
-Received: $hello world$ with sequence number 0
 Received: $hi there$ with sequence number 1
 Sent: ACK 2

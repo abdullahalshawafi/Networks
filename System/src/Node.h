@@ -17,6 +17,8 @@ private:
     /* CONSTANTS */
     int WS;
     int TO;
+    double PT;
+    double ST;
 
     // A file stream to write the output to
     std::ofstream outputFile;
@@ -46,7 +48,7 @@ protected:
     void sendAck(Packet_Base *packet, int seqNum);
     bool receiveAck(Packet_Base *packet);
     void checkTimeout(int msgIndex);
-    void delayMessage(std::string s);
+    void delayMessage(std::string event, double delay);
 };
 
 #endif

@@ -1,6 +1,15 @@
 {
     "ros.distro": "noetic",
     "files.associations": {
-        "bitset": "cpp"
+        "*.jsx": "javascriptreact",
+        "bitset": "cpp",
+        "string": "cpp",
+        "graphicscontext": "cpp",
+        "object": "cpp",
+        "operationthread": "cpp",
+        "stats": "cpp",
+        "geoid": "cpp",
+        "units": "cpp",
+        "verticaldatum": "cpp"
     }
 }
