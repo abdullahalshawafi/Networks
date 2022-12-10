@@ -11,28 +11,37 @@ void Node::initialize()
 
 void Node::sendPacket(Packet_Base *packet)
 {
+    if (index < start)
+    {
+        index = start;
+        return;
+    }
+
+    if (index >= start + WS)
+        return;
+
     // Send the next packet to the other node
     send(packet, NODE_OUTPUT);
 
-    int TO = getParentModule()->par("TO").intValue();
     Packet_Base *timeout = new Packet_Base(std::to_string(index).c_str());
     scheduleAt(simTime() + exponential(TO), timeout);
 
     // Write the sent message to the output file
     outputFile << "Sent: " << packet->getPayload() << endl;
+
+    scheduleAt(simTime() + exponential(2), new cMessage("processing finished"));
 }
 
 void Node::checkTimeout(int msgIndex)
 {
     EV << "Checking timeout\n";
-    if (msgIndex < this->start)
+    if (msgIndex < this->start) // If the message index is less than the start of the window i.e acked, then return
         return;
-    else
-    {
-        EV << "Timed out\n";
-        this->start = msgIndex;
-        this->index = msgIndex;
-    }
+    // if not acked, then reprocess the message and reset the start of the window to the message index
+    EV << "Timed out\n";
+    this->start = msgIndex;
+    this->index = msgIndex;
+    scheduleAt(simTime() + exponential(2), new cMessage("processing finished"));
 }
 
 Packet_Base *Node::createPacket(Packet_Base *oldPacket, std::string newPayload)
@@ -120,13 +129,48 @@ void Node::sendAck(Packet_Base *packet, int seqNum)
     outputFile << "Sent: ACK " << expectedSeqNum << endl;
 }
 
+bool Node::receiveAck(Packet_Base *packet)
+{
+    int receiverSeqNum = packet->getACK_nr();
+
+    // If we reached the end of the vector, then finish the simulation
+    if (receiverSeqNum == data.size())
+    {
+        cancelAndDelete(packet); // Delete the packet object
+        finish();                // Finish the simulation
+        return false;
+    }
+
+    start = receiverSeqNum;
+    scheduleAt(simTime() + exponential(2), new cMessage("processing finished"));
+    return true;
+}
+
 void Node::handleMessage(cMessage *msg)
 {
     // Cast the message to Packet_Base
     Packet_Base *packet = check_and_cast<Packet_Base *>(msg);
 
     if (msg->isSelfMessage())
-        this->checkTimeout(std::atoi(msg->getName()));
+    {
+        if (strcmp(msg->getName(), "You can start") == 0)
+        {
+            readFileMsg();                                     // Read the messages from the input file
+            packet = createPacket(packet, data[index].second); // Construct the first packet
+            sendPacket(packet);                                // Send the first packet to the other node
+            index++;                                           // Increment the index
+        }
+        else if (strcmp(msg->getName(), "processing finished") == 0)
+        {
+            packet = createPacket(packet, data[index].second); // Construct the first packet
+            sendPacket(packet);                                // Send the first packet to the other node
+            index++;                                           // Increment the index
+        }
+        else // timeout
+        {
+            this->checkTimeout(std::atoi(msg->getName()));
+        }
+    }
 
     // Create output.txt file to log the messages events into it
     outputFile.open("../output/output.txt", std::ios_base::app);
@@ -134,31 +178,27 @@ void Node::handleMessage(cMessage *msg)
     // If the message is the start signal
     if (strcmp(packet->getPayload(), START_SIGNAL) == 0)
     {
-        readFileMsg();                                     // Read the messages from the input file
-        packet = createPacket(packet, data[index].second); // Construct the packet
-        sendPacket(packet);                                // Send the first packet to the other node
-        index++;                                           // Increment the index
-    }
-    // If the message is an ACK signal, then send the next message
-    else if (packet->getFrame_type() == ACK_SIGNAL)
-    {
-        // If we reached the end of the vector, then finish the simulation
-        if (index == data.size())
-        {
-            cancelAndDelete(packet); // Delete the packet object
-            return finish();         // Finish the simulation
-        }
-
-        packet = createPacket(packet, data[index].second); // Construct the packet
-        sendPacket(packet);                                // Send the next packet to the other node
-        index++;                                           // Increment the index
+        scheduleAt(simTime() + exponential(2), new cMessage("You can start"));
     }
     // Logic for the receiving node
-    else
+    else if (packet->getFrame_type() == DATA_SIGNAL)
     {
         int seqNum = receivePacket(packet);
         sendAck(packet, seqNum);
     }
+    // Logic for sending the next message
+    else if (packet->getFrame_type() == ACK_SIGNAL)
+    {
+        if (!receiveAck(packet)) // Receive the ACK signal
+            return;
+    }
+
+    // while (index < data.size() && index < start + WS)
+    // {
+    //     packet = createPacket(packet, data[index].second);
+    //     sendPacket(packet);
+    //     index++;
+    // }
 
     // Close the output file
     outputFile.close();
