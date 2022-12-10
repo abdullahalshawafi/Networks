@@ -4,8 +4,17 @@
 
 Define_Module(Node);
 
+void Node::delayMessage(std::string s)
+{
+    EV << "Delaying message: " << s << endl;
+    scheduleAt(simTime() + 0.0, new Packet_Base(s.c_str()));
+}
 void Node::initialize()
 {
+    // Initialize the constants
+    WS = getParentModule()->par("WS").intValue();
+    TO = getParentModule()->par("TO").intValue();
+
     std::remove("../output/output.txt");
 }
 
@@ -23,13 +32,12 @@ void Node::sendPacket(Packet_Base *packet)
     // Send the next packet to the other node
     send(packet, NODE_OUTPUT);
 
-    Packet_Base *timeout = new Packet_Base(std::to_string(index).c_str());
-    scheduleAt(simTime() + exponential(TO), timeout);
+    delayMessage(std::to_string(index));
 
     // Write the sent message to the output file
-    outputFile << "Sent: " << packet->getPayload() << endl;
-
-    scheduleAt(simTime() + exponential(2), new cMessage("processing finished"));
+    outputFile
+        << "Sent: " << packet->getPayload() << endl;
+    delayMessage("processing finished");
 }
 
 void Node::checkTimeout(int msgIndex)
@@ -41,11 +49,12 @@ void Node::checkTimeout(int msgIndex)
     EV << "Timed out\n";
     this->start = msgIndex;
     this->index = msgIndex;
-    scheduleAt(simTime() + exponential(2), new cMessage("processing finished"));
+    delayMessage("processing finished");
 }
 
 Packet_Base *Node::createPacket(Packet_Base *oldPacket, std::string newPayload)
 {
+
     // 1.Apply byte stuffing framing to the message payload
     std::string frame = Node::framing(newPayload);
     // 2.Set the trailer to the parity byte
@@ -96,6 +105,7 @@ void Node::readFileMsg()
 
 int Node::receivePacket(Packet_Base *packet)
 {
+    EV << "Received message " << packet->getName() << endl;
     int seqNum = packet->getHeader();
     std::string frame = packet->getPayload();
     char parity = packet->getTrailer();
@@ -142,25 +152,29 @@ bool Node::receiveAck(Packet_Base *packet)
     }
 
     start = receiverSeqNum;
-    scheduleAt(simTime() + exponential(2), new cMessage("processing finished"));
+    delayMessage("processing finished");
     return true;
 }
 
 void Node::handleMessage(cMessage *msg)
 {
     // Cast the message to Packet_Base
-    Packet_Base *packet = check_and_cast<Packet_Base *>(msg);
+    Packet_Base *packet = check_and_cast<Packet_Base *>(msg->dup());
 
-    if (msg->isSelfMessage())
+    if (packet->isSelfMessage())
     {
-        if (strcmp(msg->getName(), "You can start") == 0)
+        if (index == data.size() && data.size() != 0)
+            return;
+
+        EV << "Received delayed message: " << packet->getName() << endl;
+        if (strcmp(packet->getName(), "You can start") == 0)
         {
             readFileMsg();                                     // Read the messages from the input file
             packet = createPacket(packet, data[index].second); // Construct the first packet
             sendPacket(packet);                                // Send the first packet to the other node
             index++;                                           // Increment the index
         }
-        else if (strcmp(msg->getName(), "processing finished") == 0)
+        else if (strcmp(packet->getName(), "processing finished") == 0)
         {
             packet = createPacket(packet, data[index].second); // Construct the first packet
             sendPacket(packet);                                // Send the first packet to the other node
@@ -168,8 +182,10 @@ void Node::handleMessage(cMessage *msg)
         }
         else // timeout
         {
-            this->checkTimeout(std::atoi(msg->getName()));
+            this->checkTimeout(std::atoi(packet->getName()));
         }
+
+        return;
     }
 
     // Create output.txt file to log the messages events into it
@@ -178,7 +194,7 @@ void Node::handleMessage(cMessage *msg)
     // If the message is the start signal
     if (strcmp(packet->getPayload(), START_SIGNAL) == 0)
     {
-        scheduleAt(simTime() + exponential(2), new cMessage("You can start"));
+        delayMessage("You can start");
     }
     // Logic for the receiving node
     else if (packet->getFrame_type() == DATA_SIGNAL)

@@ -15,8 +15,8 @@ class Node : public cSimpleModule
 {
 private:
     /* CONSTANTS */
-    const int WS = getParentModule()->par("WS").intValue();
-    const int TO = getParentModule()->par("TO").intValue();
+    int WS;
+    int TO;
 
     // A file stream to write the output to
     std::ofstream outputFile;
@@ -37,15 +37,16 @@ protected:
     virtual void initialize();
     virtual void handleMessage(cMessage *msg);
     void readFileMsg();
+    std::string framing(std::string payload);
     char getParity(std::string frame);
-    void checkTimeout(int msgIndex);
+    Packet_Base *createPacket(Packet_Base *oldPacket, std::string newPayload);
     void sendPacket(Packet_Base *packet);
-    bool checkParity(std::string frame, char expectedParity);
     int receivePacket(Packet_Base *packet);
+    bool checkParity(std::string frame, char expectedParity);
     void sendAck(Packet_Base *packet, int seqNum);
     bool receiveAck(Packet_Base *packet);
-    std::string framing(std::string payload);
-    Packet_Base *createPacket(Packet_Base *oldPacket, std::string newPayload);
+    void checkTimeout(int msgIndex);
+    void delayMessage(std::string s);
 };
 
 #endif
