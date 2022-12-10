@@ -1,5 +1,7 @@
 Sent: $hello world$
-Received: $hello world$
+Received: $hello world$ with sequence number 0
+Sent: ACK 1
 Sent: $hi there$
-Received: 
-Received: 
+Received: $hi there$ with sequence number 1
+Sent: ACK 2
+Received:  with sequence number 0
