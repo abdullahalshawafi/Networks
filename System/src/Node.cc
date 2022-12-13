@@ -4,6 +4,7 @@
 #include <string>
 #include <cstring>
 #include <cstddef>
+#include <bitset>
 
 Define_Module(Node);
 // initializations
@@ -140,7 +141,7 @@ Packet_Base *Node::createPacket(Packet_Base *oldPacket, std::string newPayload)
     // 3.Set the payload to the frame
     oldPacket->setPayload(frame.c_str());
     // 4.Set the header to the sequence number
-    oldPacket->setHeader(index);
+    oldPacket->setHeader(index % WS);
     // 5.Set the frame type to data
     oldPacket->setFrame_type(DATA_SIGNAL);
 
@@ -177,17 +178,12 @@ void Node::sendPacket(Packet_Base *packet, double delay = 0.0)
         return;
     }
 
-    if (index >= start + WS)
-        return;
-
     // Write the sent message to the output file
     sendDelayed(packet, delay, NODE_OUTPUT);
-    EV << "set timer for " << index << " to " << simTime() + TO << endl;
 
     // Set the time out clock
-    timeoutMsgs[index] = new Packet_Base(("T" + std::to_string(index)).c_str());
-    scheduleAt(simTime() + TO, timeoutMsgs[index]);
-    // delayPacket("T" + std::to_string(index), TO); // time out clock
+    timeoutMsgs[index % WS] = new Packet_Base(("T" + std::to_string(index)).c_str());
+    scheduleAt(simTime() + TO, timeoutMsgs[index % WS]);
 
     return;
 }
@@ -219,9 +215,9 @@ void Node::sendAck(Packet_Base *packet)
 bool Node::receiveAck(Packet_Base *packet)
 {
     int receiverSeqNum = packet->getACK_nr();
-
-    EV << "At time [" << simTime() << "], " << getName() << " received [ACK] " << receiverSeqNum << endl;
-    EV << ("T" + std::to_string(receiverSeqNum - 1)).c_str() << endl;
+    if (receiverSeqNum == 0)
+        receiverSeqNum = WS;
+    EV << "ack" << receiverSeqNum << endl;
 
     // TODO: check if the received ACK is the expected one
     cancelAndDelete(timeoutMsgs[receiverSeqNum - 1]); // Cancel the timeout clock
@@ -235,8 +231,14 @@ bool Node::receiveAck(Packet_Base *packet)
         return false;
     }
 
-    // start = receiverSeqNum;
-    // delayPacket("processing finished", PT);
+    start++;
+
+    // check if we was blocked on the ack resume sending
+    if (start + WS == index + 1)
+    {
+        outputFile << "At [" << simTime() << "], " << getName() << " Introducing channel error with code " << data[this->index].first << endl;
+        delayPacket("processing finished", PT);
+    }
 
     return true;
 }
@@ -262,11 +264,12 @@ void Node::handleSending(Packet_Base *packet)
     }
 
     packet = createPacket(packet, data[this->index].second); // Construct the first packet
+    std::bitset<4> trailer(packet->getTrailer());            // Get the trailer of the packet
 
     outputFile << "At time [" << simTime() << "], " << getName();
     outputFile << " [sent] frame with seq_num=[" << packet->getHeader();
     outputFile << "], and payload=[" << packet->getPayload();
-    outputFile << "], "; // and trailer=[" << packet->getTrailer() << "] ";
+    outputFile << "], and trailer=[" << trailer << "] ";
     outputFile << "Modified " << (isModification ? "[1]" : "[-1] ");
     outputFile << "Lost " << (isLoss ? "[Yes]" : "[No] ");
     outputFile << "Duplicated " << (isDuplication ? "[1]" : "[-1] ");
@@ -284,20 +287,22 @@ void Node::handleMessage(cMessage *msg)
 
     if (packet->isSelfMessage())
     {
-        if (index == data.size() && data.size() != 0)
-            return;
         // receiver ready to send a packet
         // and prepare for the next packet
-        else if (strcmp(packet->getName(), "processing finished") == 0)
+        if (strcmp(packet->getName(), "processing finished") == 0)
         {
             handleSending(packet);
 
-            // TODO: check if the window is full
-            if (index >= data.size())
+            // if the window is full, then return
+            // will be blocked until the next ack is received
+            if (this->index >= data.size() || this->index >= start + WS)
+            {
+                EV << "window is full" << endl;
                 return;
+            }
 
             delayPacket("processing finished", PT);
-            outputFile << "At time " << simTime() << ", " << getName() << " Introducing channel error with code " << data[this->index].first << endl;
+            outputFile << "At [" << simTime() << "], " << getName() << " Introducing channel error with code " << data[this->index].first << endl;
         }
         else if (strcmp(packet->getName(), "send ack") == 0)
         {
@@ -313,6 +318,14 @@ void Node::handleMessage(cMessage *msg)
             {
                 // resend all packets in the window again
                 this->index = currIndex;
+                EV << this->index << endl;
+
+                // remove all the timeout messages
+                for (int i = 0; i < WS; i++)
+                {
+                    cancelAndDelete(timeoutMsgs[i]);
+                }
+
                 delayPacket("processing finished", PT);
             }
             else if (event == 'D')
@@ -337,11 +350,12 @@ void Node::handleMessage(cMessage *msg)
     else if (packet->getFrame_type() == DATA_SIGNAL)
     {
         int seqNum = receivePacket(packet);
-        EV << "received seqNum " << seqNum << " expected seqNum " << expectedSeqNum << endl;
         if (seqNum != expectedSeqNum)
             return;
         // Increment the expected sequence number
         expectedSeqNum++;
+        expectedSeqNum %= WS;
+        EV << "expectedSeqNum: " << expectedSeqNum << endl;
         delayPacket("send ack", PT, expectedSeqNum);
     }
     // Logic for sending receiving ACK from receiver to sender
