@@ -18,6 +18,8 @@ void Node::initialize()
     DD = getParentModule()->par("DD").doubleValue();
     LP = getParentModule()->par("LP").doubleValue();
 
+    timeoutMsgs = std::vector<Packet_Base *>(WS, nullptr);
+
     if (strcmp(getName(), NODE0) == 0)
     {
         outputFileName = "output0.txt";
@@ -181,7 +183,10 @@ void Node::sendPacket(Packet_Base *packet, double delay = 0.0)
     // Write the sent message to the output file
     sendDelayed(packet, delay, NODE_OUTPUT);
     EV << "set timer for " << index << " to " << simTime() + TO << endl;
-    scheduleAt(simTime() + TO, new Packet_Base(("T" + std::to_string(index)).c_str()));
+
+    // Set the time out clock
+    timeoutMsgs[index] = new Packet_Base(("T" + std::to_string(index)).c_str());
+    scheduleAt(simTime() + TO, timeoutMsgs[index]);
     // delayPacket("T" + std::to_string(index), TO); // time out clock
 
     return;
@@ -219,7 +224,7 @@ bool Node::receiveAck(Packet_Base *packet)
     EV << ("T" + std::to_string(receiverSeqNum - 1)).c_str() << endl;
 
     // TODO: check if the received ACK is the expected one
-    cancelEvent(new Packet_Base(("T" + std::to_string(receiverSeqNum - 1)).c_str())); // Cancel the timeout clock
+    cancelAndDelete(timeoutMsgs[receiverSeqNum - 1]); // Cancel the timeout clock
 
     // If we reached the end of the vector, then finish the simulation
     if (receiverSeqNum == data.size())
@@ -281,7 +286,8 @@ void Node::handleMessage(cMessage *msg)
     {
         if (index == data.size() && data.size() != 0)
             return;
-        // receiver finished processing the message
+        // receiver ready to send a packet
+        // and prepare for the next packet
         else if (strcmp(packet->getName(), "processing finished") == 0)
         {
             handleSending(packet);

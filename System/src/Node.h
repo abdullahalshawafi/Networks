@@ -44,6 +44,9 @@ private:
     // Expected sequence number
     int expectedSeqNum = 0;
 
+    // create a vector for timeout messages
+    std::vector<Packet_Base *> timeoutMsgs;
+
 protected:
     virtual void initialize();
     virtual void finish();
