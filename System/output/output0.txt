@@ -1,0 +1,10 @@
+At time 0, Node0 Introducing channel error with code 0000
+At time [0.5], Node0 [sent] frame with seq_num=[0], and payload=[$aaaa$], Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At time 0.5, Node0 Introducing channel error with code 0000
+At time [1], Node0 [sent] frame with seq_num=[1], and payload=[$bbbb$], Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At time 1, Node0 Introducing channel error with code 0000
+At time [1.5], Node0 [sent] frame with seq_num=[2], and payload=[$cccc$], Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At time 1.5, Node0 Introducing channel error with code 0000
+At time [2], Node0 [sent] frame with seq_num=[3], and payload=[$dddd$], Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At time 2, Node0 Introducing channel error with code 0000
+At time [2.5], Node0 [sent] frame with seq_num=[4], and payload=[$eeee$], Modified [-1] Lost [No] Duplicated [-1] Delayed [0]

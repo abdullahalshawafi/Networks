@@ -15,10 +15,19 @@ class Node : public cSimpleModule
 {
 private:
     /* CONSTANTS */
-    int WS;
-    int TO;
-    double PT;
-    double ST;
+    int WS;    // window size
+    int TO;    // timeout
+    double PT; // processing time
+    double TD; // transmission delay
+    double ED; // channel error delay
+    double DD; // channel duplication delay
+    double LP; // ACK/NACK loss probability
+
+    // output file path
+    std::string outputPath = "../output/";
+
+    // The name of the output file
+    std::string outputFileName;
 
     // A file stream to write the output to
     std::ofstream outputFile;
@@ -37,18 +46,20 @@ private:
 
 protected:
     virtual void initialize();
+    virtual void finish();
     virtual void handleMessage(cMessage *msg);
     void readFileMsg();
     std::string framing(std::string payload);
     char getParity(std::string frame);
     Packet_Base *createPacket(Packet_Base *oldPacket, std::string newPayload);
-    void sendPacket(Packet_Base *packet);
+    void sendPacket(Packet_Base *packet, double delay);
     int receivePacket(Packet_Base *packet);
     bool checkParity(std::string frame, char expectedParity);
-    void sendAck(Packet_Base *packet, int seqNum);
+    void sendAck(Packet_Base *packet);
     bool receiveAck(Packet_Base *packet);
     void checkTimeout(int msgIndex);
-    void delayMessage(std::string event, double delay);
+    void delayPacket(std::string event, double delay, int expectedSeqNum);
+    void handleSending(Packet_Base *packet);
 };
 
 #endif

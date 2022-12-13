@@ -1,0 +1,5 @@
+At time [2], Node1 sending [ACK] with number [1]
+At time [2.5], Node1 sending [ACK] with number [2]
+At time [3], Node1 sending [ACK] with number [3]
+At time [3.5], Node1 sending [ACK] with number [4]
+At time [4], Node1 sending [ACK] with number [5]

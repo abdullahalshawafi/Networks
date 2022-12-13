@@ -1,6 +1,9 @@
 #include "Node.h"
 #include "Constants.h"
 #include "Packet_m.h"
+#include <string>
+#include <cstring>
+#include <cstddef>
 
 Define_Module(Node);
 // initializations
@@ -10,9 +13,24 @@ void Node::initialize()
     WS = getParentModule()->par("WS").intValue();
     TO = getParentModule()->par("TO").intValue();
     PT = getParentModule()->par("PT").doubleValue();
-    ST = 1.0;
+    TD = getParentModule()->par("TD").doubleValue();
+    ED = getParentModule()->par("ED").doubleValue();
+    DD = getParentModule()->par("DD").doubleValue();
+    LP = getParentModule()->par("LP").doubleValue();
 
-    std::remove("../output/output.txt");
+    if (strcmp(getName(), NODE0) == 0)
+    {
+        outputFileName = "output0.txt";
+    }
+    else if (strcmp(getName(), NODE1) == 0)
+    {
+        outputFileName = "output1.txt";
+    }
+
+    std::remove((outputPath + outputFileName).c_str());
+
+    // Create output.txt file to log the messages events into it
+    outputFile.open((outputPath + outputFileName).c_str(), std::ios_base::app);
 }
 void Node::readFileMsg()
 {
@@ -129,25 +147,27 @@ Packet_Base *Node::createPacket(Packet_Base *oldPacket, std::string newPayload)
 
 /// Transmission functions
 // Timing functions
-void Node::delayMessage(std::string event, double delay)
+void Node::delayPacket(std::string event, double delay, int ack = -1)
 {
-    // send this event after the delay
-    EV << "Delaying message: " << event << endl;
-    scheduleAt(simTime() + delay, new Packet_Base(event.c_str()));
+    Packet_Base *packet = new Packet_Base(event.c_str());
+
+    if (ack != -1)
+    {
+        packet->setACK_nr(ack);
+    }
+    scheduleAt(simTime() + delay, packet);
 }
 void Node::checkTimeout(int msgIndex)
 {
-    EV << "Checking timeout\n";
-    if (msgIndex < this->start) // If the message index is less than the start of the window i.e acked, then return
+    if (msgIndex < this->start || this->index <= msgIndex) // If the message index is less than the start of the window i.e acked, then return
         return;
     // if not acked, then reprocess the message and reset the start of the window to the message index
-    EV << "Timed out\n";
     this->start = msgIndex;
     this->index = msgIndex;
-    delayMessage("processing finished", PT); // to avoid blocking
+    delayPacket("processing finished", PT); // to avoid blocking
 }
 // Data packets functions
-void Node::sendPacket(Packet_Base *packet)
+void Node::sendPacket(Packet_Base *packet, double delay = 0.0)
 {
     if (index < start)
     {
@@ -158,18 +178,16 @@ void Node::sendPacket(Packet_Base *packet)
     if (index >= start + WS)
         return;
 
-    // Send the next packet to the other node
-    send(packet, NODE_OUTPUT);
-
-    delayMessage(std::to_string(index), TO); // time out clock
-
     // Write the sent message to the output file
-    outputFile << "Sent: " << packet->getPayload() << endl;
-    EV << "Sent: " << packet->getPayload() << endl;
+    sendDelayed(packet, delay, NODE_OUTPUT);
+    EV << "set timer for " << index << " to " << simTime() + TO << endl;
+    scheduleAt(simTime() + TO, new Packet_Base(("T" + std::to_string(index)).c_str()));
+    // delayPacket("T" + std::to_string(index), TO); // time out clock
+
+    return;
 }
 int Node::receivePacket(Packet_Base *packet)
 {
-    EV << "Received message " << packet->getName() << endl;
     int seqNum = packet->getHeader();
     std::string frame = packet->getPayload();
     char parity = packet->getTrailer();
@@ -177,48 +195,82 @@ int Node::receivePacket(Packet_Base *packet)
     // Check if the parity byte is error free
     if (Node::checkParity(frame, parity))
     {
-        outputFile << "Received: " << frame << " with sequence number " << seqNum << endl;
         return seqNum;
     }
 
-    outputFile << "Error detected!" << endl;
     return -1;
 }
 // Ack packets functions
-void Node::sendAck(Packet_Base *packet, int seqNum)
+void Node::sendAck(Packet_Base *packet)
 {
-    // If the received message is corrupted, then don't send an ACK
-    if (seqNum != expectedSeqNum)
-        return;
-
-    // Increment the expected sequence number
-    expectedSeqNum++;
 
     // Send an ACK signal to the sender node to send the next message
     packet->setFrame_type(ACK_SIGNAL);
-    packet->setACK_nr(expectedSeqNum);
-    send(packet, NODE_OUTPUT);
 
-    // Write the sent ACK to the output file
-    outputFile << "Sent: ACK " << expectedSeqNum << endl;
+    outputFile << "At time [" << simTime() << "], " << getName() << " sending [ACK] ";
+    outputFile << "with number [" << packet->getACK_nr() << "]" << endl;
+    sendDelayed(packet, TD, NODE_OUTPUT);
 }
 bool Node::receiveAck(Packet_Base *packet)
 {
     int receiverSeqNum = packet->getACK_nr();
 
+    EV << "At time [" << simTime() << "], " << getName() << " received [ACK] " << receiverSeqNum << endl;
+    EV << ("T" + std::to_string(receiverSeqNum - 1)).c_str() << endl;
+
+    // TODO: check if the received ACK is the expected one
+    cancelEvent(new Packet_Base(("T" + std::to_string(receiverSeqNum - 1)).c_str())); // Cancel the timeout clock
+
     // If we reached the end of the vector, then finish the simulation
     if (receiverSeqNum == data.size())
     {
+        EV << "end of simulation" << endl;
         cancelAndDelete(packet); // Delete the packet object
         finish();                // Finish the simulation
         return false;
     }
 
-    start = receiverSeqNum;
-    delayMessage("processing finished", PT);
+    // start = receiverSeqNum;
+    // delayPacket("processing finished", PT);
+
     return true;
 }
+void Node::handleSending(Packet_Base *packet)
+{
+    std::string err = data[this->index].first;
+    bool isDelay = err[3] == '1';
+    bool isDuplication = err[2] == '1';
+    bool isLoss = err[1] == '1';
+    bool isModification = err[0] == '1';
 
+    double delay = TD;
+
+    if (isLoss)
+    {
+        this->index++;
+
+        return;
+    }
+    if (isDelay)
+    {
+        delay += ED;
+    }
+
+    packet = createPacket(packet, data[this->index].second); // Construct the first packet
+
+    outputFile << "At time [" << simTime() << "], " << getName();
+    outputFile << " [sent] frame with seq_num=[" << packet->getHeader();
+    outputFile << "], and payload=[" << packet->getPayload();
+    outputFile << "], "; // and trailer=[" << packet->getTrailer() << "] ";
+    outputFile << "Modified " << (isModification ? "[1]" : "[-1] ");
+    outputFile << "Lost " << (isLoss ? "[Yes]" : "[No] ");
+    outputFile << "Duplicated " << (isDuplication ? "[1]" : "[-1] ");
+    outputFile << "Delayed [" << (isDelay ? std::to_string(ED) : "0");
+    outputFile << "]" << endl;
+
+    sendPacket(packet, delay); // Send the first packet to the other node
+    this->index++;             // Increment the index
+}
 /// Message handling functions
 void Node::handleMessage(cMessage *msg)
 {
@@ -229,52 +281,72 @@ void Node::handleMessage(cMessage *msg)
     {
         if (index == data.size() && data.size() != 0)
             return;
-
-        EV << "Received delayed message: " << packet->getName() << endl;
-        if (strcmp(packet->getName(), "You can start") == 0)
-        {
-            readFileMsg();                                     // Read the messages from the input file
-            packet = createPacket(packet, data[index].second); // Construct the first packet
-            sendPacket(packet);                                // Send the first packet to the other node
-            index++;                                           // Increment the index
-            delayMessage("processing finished", PT);
-        }
+        // receiver finished processing the message
         else if (strcmp(packet->getName(), "processing finished") == 0)
         {
-            packet = createPacket(packet, data[index].second); // Construct the first packet
-            sendPacket(packet);                                // Send the first packet to the other node
-            index++;                                           // Increment the index
-            delayMessage("processing finished", PT);
+            handleSending(packet);
+
+            // TODO: check if the window is full
+            if (index >= data.size())
+                return;
+
+            delayPacket("processing finished", PT);
+            outputFile << "At time " << simTime() << ", " << getName() << " Introducing channel error with code " << data[this->index].first << endl;
         }
-        else // timeout
+        else if (strcmp(packet->getName(), "send ack") == 0)
         {
-            this->checkTimeout(std::atoi(packet->getName()));
+            sendAck(packet);
+        }
+        // timeout
+        else
+        {
+            std::string packetStr = packet->getName();
+            char event = packetStr[0];
+            int currIndex = std::stoi(packetStr.substr(1, packetStr.size() - 1));
+            if (event == 'T')
+            {
+                // resend all packets in the window again
+                this->index = currIndex;
+                delayPacket("processing finished", PT);
+            }
+            else if (event == 'D')
+            {
+                packet = createPacket(packet, data[currIndex].second); // Construct the first packet
+                sendPacket(packet);                                    // Send the first packet to the other node
+            }
         }
 
         return;
     }
 
-    // Create output.txt file to log the messages events into it
-    outputFile.open("../output/output.txt", std::ios_base::app);
-
     // If the message is the start signal
     if (strcmp(packet->getPayload(), START_SIGNAL) == 0)
     {
-        delayMessage("You can start", ST);
+
+        readFileMsg(); // Read the messages from the input file
+        outputFile << "At time " << simTime() << ", " << getName() << " Introducing channel error with code " << data[0].first << endl;
+        delayPacket("processing finished", PT);
     }
-    // Logic for the receiving node
+    // Logic for the receiving node in the receiver from sender
     else if (packet->getFrame_type() == DATA_SIGNAL)
     {
         int seqNum = receivePacket(packet);
-        sendAck(packet, seqNum);
+        EV << "received seqNum " << seqNum << " expected seqNum " << expectedSeqNum << endl;
+        if (seqNum != expectedSeqNum)
+            return;
+        // Increment the expected sequence number
+        expectedSeqNum++;
+        delayPacket("send ack", PT, expectedSeqNum);
     }
-    // Logic for sending the next message
+    // Logic for sending receiving ACK from receiver to sender
     else if (packet->getFrame_type() == ACK_SIGNAL)
     {
         if (!receiveAck(packet)) // Receive the ACK signal
             return;
     }
+}
 
-    // Close the output file
+void Node::finish()
+{
     outputFile.close();
 }
