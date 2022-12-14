@@ -55,7 +55,7 @@ protected:
     std::string framing(std::string payload);
     char getParity(std::string frame);
     Packet_Base *createPacket(Packet_Base *oldPacket, std::string newPayload);
-    void sendPacket(Packet_Base *packet, double delay);
+    void sendPacket(Packet_Base *packet, double delay, bool lost);
     int receivePacket(Packet_Base *packet);
     bool checkParity(std::string frame, char expectedParity);
     void sendAck(Packet_Base *packet);

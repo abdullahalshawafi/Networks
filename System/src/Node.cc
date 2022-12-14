@@ -170,7 +170,7 @@ void Node::checkTimeout(int msgIndex)
     delayPacket("processing finished", PT); // to avoid blocking
 }
 // Data packets functions
-void Node::sendPacket(Packet_Base *packet, double delay = 0.0)
+void Node::sendPacket(Packet_Base *packet, double delay = 0.0, bool loss = false)
 {
     if (index < start)
     {
@@ -178,8 +178,11 @@ void Node::sendPacket(Packet_Base *packet, double delay = 0.0)
         return;
     }
 
-    // Write the sent message to the output file
-    sendDelayed(packet, delay, NODE_OUTPUT);
+    if (!loss)
+    {
+        // Write the sent message to the output file
+        sendDelayed(packet, delay, NODE_OUTPUT);
+    }
 
     // Set the time out clock
     timeoutMsgs[index % WS] = new Packet_Base(("T" + std::to_string(index)).c_str());
@@ -217,12 +220,15 @@ bool Node::receiveAck(Packet_Base *packet)
     int receiverSeqNum = packet->getACK_nr();
     if (receiverSeqNum == 0)
         receiverSeqNum = WS;
-    EV << "ack" << receiverSeqNum << endl;
 
     // TODO: check if the received ACK is the expected one
+    EV << (receiverSeqNum - 1 == start % WS ? "right ack" : "wrong ack") << endl;
+
     cancelAndDelete(timeoutMsgs[receiverSeqNum - 1]); // Cancel the timeout clock
+    timeoutMsgs[receiverSeqNum - 1] = nullptr;        // Set the timeout clock to null
 
     // If we reached the end of the vector, then finish the simulation
+    // TODO: check if the received ACK is the last one
     if (receiverSeqNum == data.size())
     {
         EV << "end of simulation" << endl;
@@ -231,10 +237,13 @@ bool Node::receiveAck(Packet_Base *packet)
         return false;
     }
 
+    // increase the start of the window but not more than the index
     start++;
 
+    EV << "start " << start << " index " << index << endl;
+
     // check if we was blocked on the ack resume sending
-    if (start + WS == index + 1)
+    if (index < data.size() && start + WS == index + 1)
     {
         outputFile << "At [" << simTime() << "], " << getName() << " Introducing channel error with code " << data[this->index].first << endl;
         delayPacket("processing finished", PT);
@@ -252,12 +261,6 @@ void Node::handleSending(Packet_Base *packet)
 
     double delay = TD;
 
-    if (isLoss)
-    {
-        this->index++;
-
-        return;
-    }
     if (isDelay)
     {
         delay += ED;
@@ -270,14 +273,21 @@ void Node::handleSending(Packet_Base *packet)
     outputFile << " [sent] frame with seq_num=[" << packet->getHeader();
     outputFile << "], and payload=[" << packet->getPayload();
     outputFile << "], and trailer=[" << trailer << "] ";
-    outputFile << "Modified " << (isModification ? "[1]" : "[-1] ");
-    outputFile << "Lost " << (isLoss ? "[Yes]" : "[No] ");
-    outputFile << "Duplicated " << (isDuplication ? "[1]" : "[-1] ");
+    outputFile << "Modified " << (isModification ? "[1] " : "[-1] ");
+    outputFile << "Lost " << (isLoss ? "[Yes] " : "[No] ");
+    outputFile << "Duplicated " << (isDuplication ? "[1] " : "[-1] ");
     outputFile << "Delayed [" << (isDelay ? std::to_string(ED) : "0");
     outputFile << "]" << endl;
 
-    sendPacket(packet, delay); // Send the first packet to the other node
-    this->index++;             // Increment the index
+    sendPacket(packet, delay, isLoss); // Send the first packet to the other node
+
+    // change lost bit to 0 to send the packet in next time
+    if (isLoss)
+    {
+        EV << this->index << endl;
+        data[this->index].first[1] = '0';
+    }
+    this->index++; // Increment the index
 }
 /// Message handling functions
 void Node::handleMessage(cMessage *msg)
@@ -287,6 +297,7 @@ void Node::handleMessage(cMessage *msg)
 
     if (packet->isSelfMessage())
     {
+
         // receiver ready to send a packet
         // and prepare for the next packet
         if (strcmp(packet->getName(), "processing finished") == 0)
@@ -300,6 +311,8 @@ void Node::handleMessage(cMessage *msg)
                 EV << "window is full" << endl;
                 return;
             }
+
+            EV << "index: " << this->index << endl;
 
             delayPacket("processing finished", PT);
             outputFile << "At [" << simTime() << "], " << getName() << " Introducing channel error with code " << data[this->index].first << endl;
@@ -318,7 +331,7 @@ void Node::handleMessage(cMessage *msg)
             {
                 // resend all packets in the window again
                 this->index = currIndex;
-                EV << this->index << endl;
+                outputFile << "Time out event at time [" << simTime() << "], at " << getName() << " for frame with seq_num=[" << packet->getHeader() << "]" << endl;
 
                 // remove all the timeout messages
                 for (int i = 0; i < WS; i++)
@@ -343,19 +356,19 @@ void Node::handleMessage(cMessage *msg)
     {
 
         readFileMsg(); // Read the messages from the input file
-        outputFile << "At time " << simTime() << ", " << getName() << " Introducing channel error with code " << data[0].first << endl;
+        outputFile << "At time [" << simTime() << "], " << getName() << " Introducing channel error with code " << data[0].first << endl;
         delayPacket("processing finished", PT);
     }
     // Logic for the receiving node in the receiver from sender
     else if (packet->getFrame_type() == DATA_SIGNAL)
     {
         int seqNum = receivePacket(packet);
+        EV << "seqNum: " << seqNum << " expectedSeqNum: " << expectedSeqNum << endl;
         if (seqNum != expectedSeqNum)
             return;
         // Increment the expected sequence number
         expectedSeqNum++;
         expectedSeqNum %= WS;
-        EV << "expectedSeqNum: " << expectedSeqNum << endl;
         delayPacket("send ack", PT, expectedSeqNum);
     }
     // Logic for sending receiving ACK from receiver to sender
