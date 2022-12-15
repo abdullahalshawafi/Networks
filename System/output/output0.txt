@@ -10,5 +10,55 @@ At [3], Node0 Introducing channel error with code 0000
 At time [3.5], Node0 [sent] frame with seq_num=[0], and payload=[$/$eeee/$$], and trailer=[0000] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
 At [3.5], Node0 Introducing channel error with code 0100
 At time [4], Node0 [sent] frame with seq_num=[1], and payload=[$aa$], and trailer=[0000] Modified [-1] Lost [Yes] Duplicated [-1] Delayed [0]
-Time out event at time [14], at Node0 for frame with seq_num=[0]
+At [4], Node0 Introducing channel error with code 1000
+At time [4.5], Node0 [sent] frame with seq_num=[2], and payload=[$cb$], and trailer=[0000] Modified [1] Lost [No] Duplicated [-1] Delayed [0]
+At [4.5], Node0 Introducing channel error with code 0000
+At time [5], Node0 [sent] frame with seq_num=[3], and payload=[$cc$], and trailer=[0000] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At [6], Node0 Introducing channel error with code 0001
+At time [6.5], Node0 [sent] frame with seq_num=[0], and payload=[$dd$], and trailer=[0000] Modified [-1] Lost [No] Duplicated [-1] Delayed [4.000000]
+Time out event at time [14], at Node0 for frame with seq_num=[1]
 At time [14.5], Node0 [sent] frame with seq_num=[1], and payload=[$aa$], and trailer=[0000] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At [14.5], Node0 Introducing channel error with code 1000
+At time [15], Node0 [sent] frame with seq_num=[2], and payload=[$cb$], and trailer=[0000] Modified [1] Lost [No] Duplicated [-1] Delayed [0]
+At [15], Node0 Introducing channel error with code 0000
+At time [15.5], Node0 [sent] frame with seq_num=[3], and payload=[$cc$], and trailer=[0000] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At [15.5], Node0 Introducing channel error with code 0001
+At time [16], Node0 [sent] frame with seq_num=[0], and payload=[$dd$], and trailer=[0000] Modified [-1] Lost [No] Duplicated [-1] Delayed [4.000000]
+At [17], Node0 Introducing channel error with code 0100
+At time [17.5], Node0 [sent] frame with seq_num=[1], and payload=[$ee$], and trailer=[0000] Modified [-1] Lost [Yes] Duplicated [-1] Delayed [0]
+Time out event at time [25], at Node0 for frame with seq_num=[2]
+At time [25.5], Node0 [sent] frame with seq_num=[2], and payload=[$bb$], and trailer=[0000] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At [25.5], Node0 Introducing channel error with code 0000
+At time [26], Node0 [sent] frame with seq_num=[3], and payload=[$cc$], and trailer=[0000] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At [26], Node0 Introducing channel error with code 0001
+At time [26.5], Node0 [sent] frame with seq_num=[0], and payload=[$dd$], and trailer=[0000] Modified [-1] Lost [No] Duplicated [-1] Delayed [4.000000]
+At [26.5], Node0 Introducing channel error with code 0100
+At time [27], Node0 [sent] frame with seq_num=[1], and payload=[$ee$], and trailer=[0000] Modified [-1] Lost [Yes] Duplicated [-1] Delayed [0]
+At [28], Node0 Introducing channel error with code 0000
+At time [28.5], Node0 [sent] frame with seq_num=[2], and payload=[$ta$], and trailer=[0101] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At [28.5], Node0 Introducing channel error with code 0000
+At time [29], Node0 [sent] frame with seq_num=[3], and payload=[$tb$], and trailer=[0110] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At [33], Node0 Introducing channel error with code 0000
+At time [33.5], Node0 [sent] frame with seq_num=[0], and payload=[$tc$], and trailer=[0111] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+Time out event at time [37], at Node0 for frame with seq_num=[1]
+At time [37.5], Node0 [sent] frame with seq_num=[1], and payload=[$ee$], and trailer=[0000] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At [37.5], Node0 Introducing channel error with code 0000
+At time [38], Node0 [sent] frame with seq_num=[2], and payload=[$ta$], and trailer=[0101] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At [38], Node0 Introducing channel error with code 0000
+At time [38.5], Node0 [sent] frame with seq_num=[3], and payload=[$tb$], and trailer=[0110] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At [38.5], Node0 Introducing channel error with code 0000
+At time [39], Node0 [sent] frame with seq_num=[0], and payload=[$tc$], and trailer=[0111] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At [40], Node0 Introducing channel error with code 0011
+At time [40.5], Node0 [sent] frame with seq_num=[1], and payload=[$fa$], and trailer=[0111] Modified [-1] Lost [No] Duplicated [1] Delayed [4.000000]
+At [40.5], Node0 Introducing channel error with code 1010
+At time [40.6], Node0 [sent] frame with seq_num=[0], and payload=[], and trailer=[0000] Modified [-1] Lost [No] Duplicated [2] Delayed [4.000000]
+At time [41], Node0 [sent] frame with seq_num=[2], and payload=[$gb$], and trailer=[0100] Modified [1] Lost [No] Duplicated [1] Delayed [0]
+At [41], Node0 Introducing channel error with code 1100
+At time [41.1], Node0 [sent] frame with seq_num=[0], and payload=[], and trailer=[0000] Modified [1] Lost [No] Duplicated [2] Delayed [0]
+At time [41.5], Node0 [sent] frame with seq_num=[3], and payload=[$fc$], and trailer=[0101] Modified [1] Lost [Yes] Duplicated [-1] Delayed [0]
+Time out event at time [51], at Node0 for frame with seq_num=[2]
+At time [51.5], Node0 [sent] frame with seq_num=[2], and payload=[$fb$], and trailer=[0100] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]
+At [51.5], Node0 Introducing channel error with code 1100
+At time [52], Node0 [sent] frame with seq_num=[3], and payload=[$fc$], and trailer=[0101] Modified [1] Lost [Yes] Duplicated [-1] Delayed [0]
+Time out event at time [62], at Node0 for frame with seq_num=[3]
+At time [62.5], Node0 [sent] frame with seq_num=[3], and payload=[$fc$], and trailer=[0101] Modified [-1] Lost [No] Duplicated [-1] Delayed [0]

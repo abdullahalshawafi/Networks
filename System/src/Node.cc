@@ -260,14 +260,39 @@ void Node::handleSending(Packet_Base *packet)
     bool isModification = err[0] == '1';
 
     double delay = TD;
-
-    if (isDelay)
-    {
-        delay += ED;
-    }
+    // change errors to 0 to send it send it correctly in the next time
 
     packet = createPacket(packet, data[this->index].second); // Construct the first packet
     std::bitset<4> trailer(packet->getTrailer());            // Get the trailer of the packet
+
+    if (!isLoss)
+    {
+        if (isDelay)
+        {
+            delay += ED;
+        }
+        if (isModification)
+        {
+            std::string m_message = data[this->index].second;
+
+            EV << "message before modification " << m_message << endl;
+
+            // change one bit in the message
+            m_message[0] = m_message[0] ^ 1;
+
+            EV << "message after modification " << m_message << endl;
+
+            packet->setPayload((framing(m_message)).c_str()); // Construct the first packet
+        }
+        if (isDuplication)
+        {
+            std::string event = "D" + std::to_string(this->index);
+            Packet_Base *packet = new Packet_Base(event.c_str());
+            scheduleAt(simTime() + DD, packet->dup());
+            // Send the first packet to the other node
+            // sendDelayed(packet, delay + , NODE_OUTPUT);
+        }
+    }
 
     outputFile << "At time [" << simTime() << "], " << getName();
     outputFile << " [sent] frame with seq_num=[" << packet->getHeader();
@@ -281,12 +306,6 @@ void Node::handleSending(Packet_Base *packet)
 
     sendPacket(packet, delay, isLoss); // Send the first packet to the other node
 
-    // change lost bit to 0 to send the packet in next time
-    if (isLoss)
-    {
-        EV << this->index << endl;
-        data[this->index].first[1] = '0';
-    }
     this->index++; // Increment the index
 }
 /// Message handling functions
@@ -312,8 +331,6 @@ void Node::handleMessage(cMessage *msg)
                 return;
             }
 
-            EV << "index: " << this->index << endl;
-
             delayPacket("processing finished", PT);
             outputFile << "At [" << simTime() << "], " << getName() << " Introducing channel error with code " << data[this->index].first << endl;
         }
@@ -331,7 +348,8 @@ void Node::handleMessage(cMessage *msg)
             {
                 // resend all packets in the window again
                 this->index = currIndex;
-                outputFile << "Time out event at time [" << simTime() << "], at " << getName() << " for frame with seq_num=[" << packet->getHeader() << "]" << endl;
+                data[this->index].first = "0000";
+                outputFile << "Time out event at time [" << simTime() << "], at " << getName() << " for frame with seq_num=[" << currIndex % WS << "]" << endl;
 
                 // remove all the timeout messages
                 for (int i = 0; i < WS; i++)
@@ -343,8 +361,43 @@ void Node::handleMessage(cMessage *msg)
             }
             else if (event == 'D')
             {
+                std::string err = data[currIndex].first;
+                bool isDelay = err[3] == '1';
+                bool isDuplication = err[2] == '1';
+                bool isLoss = err[1] == '1';
+                bool isModification = err[0] == '1';
+                std::bitset<4> trailer(packet->getTrailer());
+                outputFile << "At time [" << simTime() << "], " << getName();
+                outputFile << " [sent] frame with seq_num=[" << packet->getHeader();
+                outputFile << "], and payload=[" << packet->getPayload();
+                outputFile << "], and trailer=[" << trailer << "] ";
+                outputFile << "Modified " << (isModification ? "[1] " : "[-1] ");
+                outputFile << "Lost " << (isLoss ? "[Yes] " : "[No] ");
+                outputFile << "Duplicated [2] ";
+                outputFile << "Delayed [" << (isDelay ? std::to_string(ED) : "0");
+                outputFile << "]" << endl;
+
+                double delay = TD;
+                if (isDelay)
+                {
+                    delay += ED;
+                }
+                if (isModification)
+                {
+                    std::string m_message = data[this->index].second;
+
+                    EV << "message before modification " << m_message << endl;
+
+                    // change one bit in the message
+                    m_message[0] = m_message[0] ^ 1;
+
+                    EV << "message after modification " << m_message << endl;
+
+                    packet->setPayload((framing(m_message)).c_str()); // Construct the first packet
+                }
+
                 packet = createPacket(packet, data[currIndex].second); // Construct the first packet
-                sendPacket(packet);                                    // Send the first packet to the other node
+                sendDelayed(packet, TD, NODE_OUTPUT);
             }
         }
 
@@ -364,6 +417,7 @@ void Node::handleMessage(cMessage *msg)
     {
         int seqNum = receivePacket(packet);
         EV << "seqNum: " << seqNum << " expectedSeqNum: " << expectedSeqNum << endl;
+        EV << "correct parity: " << (checkParity(packet->getPayload(), packet->getTrailer()) ? "Yes" : "No") << endl;
         if (seqNum != expectedSeqNum)
             return;
         // Increment the expected sequence number
