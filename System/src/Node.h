@@ -23,6 +23,9 @@ private:
     double DD; // channel duplication delay
     double LP; // ACK/NACK loss probability
 
+    // node index
+    int nodeIndex;
+
     // output file path
     std::string outputPath = "../output/";
 
@@ -38,6 +41,8 @@ private:
     // A pointer to the index of the message that should be sent
     int index = 0;
 
+    std::vector<bool> read;
+
     // Start of window
     int start = 0;
 
@@ -46,6 +51,8 @@ private:
 
     // create a vector for timeout messages
     std::vector<Packet_Base *> timeoutMsgs;
+
+    int receivedCount = 0;
 
 protected:
     virtual void initialize();
@@ -59,10 +66,12 @@ protected:
     int receivePacket(Packet_Base *packet);
     bool checkParity(std::string frame, char expectedParity);
     void sendAck(Packet_Base *packet);
+    void sendNAck(Packet_Base *packet);
     bool receiveAck(Packet_Base *packet);
     void checkTimeout(int msgIndex);
     void delayPacket(std::string event, double delay, int expectedSeqNum);
     void handleSending(Packet_Base *packet);
+    void log(omnetpp::simtime_t time, std::bitset<4> trailer, Packet_Base *packet, bool isModification, bool isLoss, int isDuplication, bool isDelay);
 };
 
 #endif
