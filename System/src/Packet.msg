@@ -5,5 +5,4 @@ packet Packet {
     char trailer;
     short frame_type;
     int ACK_nr;
-
 }

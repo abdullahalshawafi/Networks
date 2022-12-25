@@ -7,7 +7,8 @@
 #include <bitset>
 
 Define_Module(Node);
-// initializations
+
+// Initializations
 void Node::initialize()
 {
     // Initialize the constants
@@ -19,22 +20,27 @@ void Node::initialize()
     DD = getParentModule()->par("DD").doubleValue();
     LP = getParentModule()->par("LP").doubleValue();
 
+    // Initialize a vector of pointers to packets to store the timeout messages
     timeoutMsgs = std::vector<Packet_Base *>(WS, nullptr);
 
+    // Initialize the output file
+    // If we are in Node 0, then the output file will be output0.txt
     if (strcmp(getName(), NODE0) == 0)
     {
         outputFileName = "output0.txt";
         nodeIndex = 0;
     }
+    // Else if we are in Node 1, then the output file will be output1.txt
     else if (strcmp(getName(), NODE1) == 0)
     {
         outputFileName = "output1.txt";
         nodeIndex = 1;
     }
 
+    // Delete the old output file
     std::remove((outputPath + outputFileName).c_str());
 
-    // Create output.txt file to log the messages events into it
+    // Create the output file to log the messages events into it
     outputFile.open((outputPath + outputFileName).c_str(), std::ios_base::app);
 }
 void Node::readFileMsg()
@@ -45,14 +51,11 @@ void Node::readFileMsg()
 
     // If we are in Node 0, then read the messages from input0.txt
     if (strcmp(getName(), NODE0) == 0)
-    {
         inputFile.open("../inputs/input0.txt");
-    }
+
     // Else if we are in Node 1, then read messages from input1.txt
     else if (strcmp(getName(), NODE1) == 0)
-    {
         inputFile.open("../inputs/input1.txt");
-    }
 
     // Read messages from the input file
     while (std::getline(inputFile, inputMessage))
@@ -70,29 +73,53 @@ void Node::readFileMsg()
     // Close the input file
     inputFile.close();
 
+    // Initialize the read vector to false
     read = std::vector<bool>(data.size(), false);
 }
 
-// Utility functions
-void Node::log(omnetpp::simtime_t time, std::bitset<4> trailer, Packet_Base *packet, bool isModification, bool isLoss, int isDuplication, bool isDelay)
-{
+/* Utility methods */
 
+// System outputs methods
+void Node::printPacketRead(omnetpp::simtime_t time)
+{
+    outputFile << "At [" << time << "], Node [" << nodeIndex << "], Introducing channel error with code =[" << data[this->index].first << "]" << endl;
+    EV << "At [" << time << "], Node [" << nodeIndex << "], Introducing channel error with code =[" << data[this->index].first << "]" << endl;
+}
+void Node::printPacketSent(omnetpp::simtime_t time, Packet_Base *packet, std::bitset<4> trailer, int modificationIndex, bool isLost, int duplicationType, bool isDelayed)
+{
     outputFile << "At time [" << time << "], Node[" << nodeIndex << "] [sent] frame with seq_num=[" << packet->getHeader() << "] ";
     outputFile << "and payload=[ " << packet->getPayload() << " ] ";
     outputFile << "and trailer=[ " << trailer << " ], ";
-    outputFile << "Modified " << (isModification ? "[1]" : "[-1]") << ", ";
-    outputFile << "Lost " << (isLoss ? "[Yes]" : "[No]") << ", ";
-    outputFile << "Duplicate [" << (isDuplication != 0 ? std::to_string(isDuplication) : "0") << "], ";
-    outputFile << "Delay [" << (isDelay ? std::to_string(ED) : "0") << "]" << endl;
+    outputFile << "Modified [" << modificationIndex << "], ";
+    outputFile << "Lost " << (isLost ? "[Yes]" : "[No]") << ", ";
+    outputFile << "Duplicate [" << duplicationType << "], ";
+    outputFile << "Delay [" << (isDelayed ? ED : 0) << "]" << endl;
 
     EV << "At time [" << time << "], Node[" << nodeIndex << "] [sent] frame with seq_num=[" << packet->getHeader() << "] ";
     EV << "and payload=[ " << packet->getPayload() << " ] ";
     EV << "and trailer=[ " << trailer << " ], ";
-    EV << "Modified " << (isModification ? "[1]" : "[-1]") << ", ";
-    EV << "Lost " << (isLoss ? "[Yes]" : "[No]") << ", ";
-    EV << "Duplicate [" << (isDuplication != 0 ? std::to_string(isDuplication) : "0") << "], ";
-    EV << "Delay [" << (isDelay ? std::to_string(ED) : "0") << "]" << endl;
+    EV << "Modified [" << modificationIndex << "], ";
+    EV << "Lost " << (isLost ? "[Yes]" : "[No]") << ", ";
+    EV << "Duplicate [" << duplicationType << "], ";
+    EV << "Delay [" << (isDelayed ? ED : 0) << "]" << endl;
 }
+void Node::printPacketTimedOut(omnetpp::simtime_t time, int seqNum)
+{
+    outputFile << "Time out event at time [" << time << "], at Node[" << nodeIndex << "] for frame with seq_num=[" << seqNum << "]" << endl;
+    EV << "Time out event at time [" << time << "], at Node[" << nodeIndex << "] for frame with seq_num=[" << seqNum << "]" << endl;
+}
+void Node::printControlPacketSent(omnetpp::simtime_t time, Packet_Base *packet, bool isLost)
+{
+    outputFile << "At time[" << time << "], Node[" << nodeIndex;
+    outputFile << "] Sending [" << (packet->getFrame_type() == ACK_SIGNAL ? "ACK" : "NACK") << "] ";
+    outputFile << "with number [" << packet->getACK_nr() << "] , loss " << (isLost ? "[Yes]" : "[No]") << endl;
+
+    EV << "At time[" << time << "], Node[" << nodeIndex;
+    EV << "] Sending [" << (packet->getFrame_type() == ACK_SIGNAL ? "ACK" : "NACK") << "] ";
+    EV << "with number [" << packet->getACK_nr() << "] , loss " << (isLost ? "[Yes]" : "[No]") << endl;
+}
+
+// Packet methods
 std::string Node::framing(std::string payload)
 {
     std::string frame = "";
@@ -101,17 +128,15 @@ std::string Node::framing(std::string payload)
     frame += FLAG_BYTE;
 
     // Go through the message payload character by character
-    for (auto c : payload)
+    for (auto character : payload)
     {
         // If the current character is either a flag or escape character
-        if (c == FLAG_BYTE || c == ESCAPE_CHAR)
-        {
+        if (character == FLAG_BYTE || character == ESCAPE_CHAR)
             // Stuff the escape character before it
             frame += ESCAPE_CHAR;
-        }
 
-        // Add the character to the frame
-        frame += c;
+        // Append the character to the frame
+        frame += character;
     }
 
     // End the frame by the flag byte
@@ -124,135 +149,127 @@ char Node::getParity(std::string frame)
     char parity = 0;
 
     // Loop through each character in the frame
-    for (int i = 0; i < frame.size(); i++)
-    {
+    for (auto character : frame)
         // XOR the parity with the character to calculate the even parity
-        parity ^= frame[i];
-    }
+        parity ^= character;
 
     return parity;
 }
 bool Node::checkParity(std::string frame, char expectedParity)
 {
-    char parity = 0;
-
-    // Loop through each character in the frame
-    for (int i = 0; i < frame.size(); i++)
-    {
-        // XOR the parity with the character to calculate the even parity
-        parity ^= frame[i];
-    }
-
     // If the calculated parity is equal to the expected parity, then the frame is valid
-    return parity == expectedParity;
+    return getParity(frame) == expectedParity;
 }
-Packet_Base *Node::createPacket(Packet_Base *oldPacket, std::string newPayload)
+Packet_Base *Node::createPacket(Packet_Base *packet, std::string newPayload)
 {
-    // 1.Apply byte stuffing framing to the message payload
+    // 1. Apply byte stuffing framing to the message payload
     std::string frame = Node::framing(newPayload);
-    // 2.Set the trailer to the parity byte
-    oldPacket->setTrailer(Node::getParity(frame));
-    // 3.Set the payload to the frame
-    oldPacket->setPayload(frame.c_str());
-    // 4.Set the header to the sequence number
-    oldPacket->setHeader(index % WS);
-    // 5.Set the frame type to data
-    oldPacket->setFrame_type(DATA_SIGNAL);
+    // 2. Set the trailer to the parity byte
+    packet->setTrailer(Node::getParity(frame));
+    // 3. Set the payload to the frame
+    packet->setPayload(frame.c_str());
+    // 4. Set the header to the sequence number
+    packet->setHeader(index % WS);
+    // 5. Set the frame type to data
+    packet->setFrame_type(DATA_SIGNAL);
 
-    return oldPacket;
+    return packet;
 }
 
-/// Transmission functions
-// Timing functions
-void Node::delayPacket(std::string event, double delay, int ack = -1)
+/* Transmission methods */
+
+// Timing methods
+void Node::notifyAfter(std::string event, double delay, int ack = -1)
 {
+    // Create a new packet with the specified event
     Packet_Base *packet = new Packet_Base(event.c_str());
 
-    if (ack != -1)
+    if (event == PROCESS_PACKET)
     {
-        packet->setACK_nr(ack);
+        processedMsgs.emplace_back(packet);
     }
+    else if (event == SEND_ACK || event == SEND_NACK)
+    {
+        controlMsgs.emplace_back(packet);
+    }
+
+    // If the event is an ACK or NACK, set the ACK number
+    if (ack != -1)
+        packet->setACK_nr(ack);
+
+    // Schedule the packet to be sent after the specified delay
     scheduleAt(simTime() + delay, packet);
 }
-// Data packets functions
-void Node::sendPacket(Packet_Base *packet, double delay = 0.0, bool loss = false)
+
+// Data packets methods
+void Node::sendPacket(Packet_Base *packet, double delay = 0.0, bool isLost = false)
 {
+    // Check if the window is full
     if (index < start)
     {
+        // If so, move the index to the start of the window
         index = start;
         return;
     }
 
-    if (!loss)
-    {
-        // Write the sent message to the output file
+    // Check if the packet is lost
+    if (!isLost)
+        // If not, send the packet to the receiver node with the specified delay
         sendDelayed(packet, delay, NODE_OUTPUT);
-    }
 
-    // Set the time out clock
-    timeoutMsgs[index % WS] = new Packet_Base(("T" + std::to_string(index)).c_str());
-    scheduleAt(simTime() + TO, timeoutMsgs[index % WS]);
+    // If the packet is lost,
+    // Set the timeout packet for the current index
+    std::string event = TIMEOUT + std::to_string(this->index);
+    timeoutMsgs[this->index % WS] = new Packet_Base(event.c_str());
+    scheduleAt(simTime() + TO, timeoutMsgs[this->index % WS]);
 
     return;
 }
 int Node::receivePacket(Packet_Base *packet)
 {
     int seqNum = packet->getHeader();
-    std::string frame = packet->getPayload();
     char parity = packet->getTrailer();
+    std::string frame = packet->getPayload();
 
     // Check if the parity byte is error free
     if (Node::checkParity(frame, parity))
-    {
+        // If so, return the sequence number
         return seqNum;
-    }
 
+    // If not, return -1 to indicate an error
     return -1;
 }
-// Ack packets functions
-void Node::sendAck(Packet_Base *packet)
+
+// ACK/NACK packets methods
+void Node::sendControlPacket(Packet_Base *packet, short signal)
 {
+    // Set the frame type to the specified signal
+    packet->setFrame_type(signal);
 
-    // Send an ACK signal to the sender node to send the next message
-    packet->setFrame_type(ACK_SIGNAL);
+    // The contorl packet could be lost with probability LP
+    bool isLost = uniform(0, 1) < LP;
 
-    // the ack can be lost with probability LP
-    bool lost = uniform(0, 1) < LP;
+    printControlPacketSent(simTime(), packet, isLost);
 
-    outputFile << "At time[" << simTime() << "], Node[" << nodeIndex << "] Sending [ACK] ";
-    outputFile << "with number [" << packet->getACK_nr() << "], loss " << (lost ? "[Yes]" : "[No]") << endl;
-
-    EV << "At time [" << simTime() << "], Node[" << nodeIndex << "] Sending [ACK] ";
-    EV << "with number [" << packet->getACK_nr() << "], loss " << (lost ? "[Yes]" : "[No]") << endl;
-
-    if (!lost)
-        sendDelayed(packet, TD, NODE_OUTPUT);
-}
-void Node::sendNAck(Packet_Base *packet)
-{
-
-    // Send an ACK signal to the sender node to send the next message
-    packet->setFrame_type(NACK_SIGNAL);
-
-    bool lost = uniform(0, 1) < LP;
-
-    outputFile << "At time[" << simTime() << "], Node[" << nodeIndex << "] Sending [NACK] ";
-    outputFile << "with number [" << packet->getACK_nr() << "], loss " << (lost ? "[Yes]" : "[No]") << endl;
-
-    EV << "At time [" << simTime() << "], Node[" << nodeIndex << "] Sending [NACK] ";
-    EV << "with number [" << packet->getACK_nr() << "], loss " << (lost ? "[Yes]" : "[No]") << endl;
-
-    if (!lost)
+    // If the control packet is not lost, send it to the sender node with the specified delay
+    if (!isLost)
         sendDelayed(packet, TD, NODE_OUTPUT);
 }
 bool Node::receiveAck(Packet_Base *packet)
 {
+    // If we received all the packets, end the simulation
+    if (receivedCount == data.size())
+    {
+        finish(); // Finish the simulation
+        return false;
+    }
+
     int receiverSeqNum = packet->getACK_nr();
     if (receiverSeqNum == 0)
         receiverSeqNum = WS;
 
-    // increase the start of the window but not more than the index
-    // only if the received ack is the expected one
+    // Increase the start of the window but not more than the index
+    // Only if the received ack is the expected one
     if (receiverSeqNum - 1 == start % WS)
     {
         cancelAndDelete(timeoutMsgs[receiverSeqNum - 1]); // Cancel the timeout clock
@@ -261,29 +278,22 @@ bool Node::receiveAck(Packet_Base *packet)
         start++;
     }
 
-    // If we reached the end of the vector, then finish the simulation
-    if (receivedCount == data.size())
-    {
-        EV << "end of simulation" << endl;
-        cancelAndDelete(packet); // Delete the packet object
-        finish();                // Finish the simulation
-        return false;
-    }
-
-    // check if we was blocked on the ack resume sending
-    if (index < data.size() && start + WS == index + 1)
+    // Check if we was blocked on the ACK and we can send the next packet
+    if (index < data.size() && index == start + WS - 1)
     {
         if (!read[this->index])
         {
             read[this->index] = true;
-            outputFile << "At [" << simTime() << "], Node [" << nodeIndex << "], Introducing channel error with code =[" << data[this->index].first << "]" << endl;
-            EV << "At [" << simTime() << "], Node [" << nodeIndex << "], Introducing channel error with code =[" << data[this->index].first << "]" << endl;
+            printPacketRead(simTime());
         }
-        delayPacket("processing finished", PT);
+
+        notifyAfter(PROCESS_PACKET, PT);
     }
 
     return true;
 }
+
+// Sending methods
 void Node::handleSending(Packet_Base *packet)
 {
     std::string err = data[this->index].first;
@@ -293,136 +303,124 @@ void Node::handleSending(Packet_Base *packet)
     bool isModification = err[0] == '1';
 
     double delay = TD;
-    // change errors to 0 to send it send it correctly in the next time
+    int modificationIndex = isModification ? 1 : -1;
+    int duplicationType = 0;
 
-    packet = createPacket(packet, data[this->index].second); // Construct the first packet
+    packet = createPacket(packet, data[this->index].second); // Construct the packet to be sent
     std::bitset<4> trailer(packet->getTrailer());            // Get the trailer of the packet
 
-    if (!isLoss)
+    if (isDelay)
     {
-        if (isDelay)
-        {
-            delay += ED;
-        }
-        if (isModification)
-        {
-            std::string m_message = data[this->index].second;
-
-            // change one bit in the message
-            m_message[0] = m_message[0] ^ 1;
-
-            packet->setPayload((framing(m_message)).c_str()); // Construct the first packet
-        }
-        if (isDuplication)
-        {
-            std::string event = "D" + std::to_string(this->index);
-            Packet_Base *packet = new Packet_Base(event.c_str());
-            scheduleAt(simTime() + DD, packet->dup());
-        }
+        delay += ED; // Add the error delay to the delay variable
     }
 
-    int dup = isDuplication ? 1 : 0;
-    log(simTime(), trailer, packet, isModification, isLoss, dup, isDelay);
-    sendPacket(packet, delay, isLoss); // Send the first packet to the other node
+    if (isModification)
+    {
+        std::string payload = packet->getPayload(); // Get the payload of the packet
+        payload[modificationIndex] ^= 1;            // Flip the bit at the specified index
+        packet->setPayload(payload.c_str());        // Reset the payload of the packet with the modified payload
+    }
+
+    if (isDuplication)
+    {
+        duplicationType = 1;                                           // Set the duplication type to 1
+        std::string event = DUPLICATION + std::to_string(this->index); // Create the duplication event
+        Packet_Base *duplicatePacket = new Packet_Base(event.c_str()); // Create a new packet with the duplication event
+
+        // Set the header, payload, trailer and frame type of the duplicate packet to the same values as the original packet
+        duplicatePacket->setHeader(packet->getHeader());
+        duplicatePacket->setPayload(packet->getPayload());
+        duplicatePacket->setTrailer(packet->getTrailer());
+        duplicatePacket->setFrame_type(packet->getFrame_type());
+
+        scheduleAt(simTime() + DD, duplicatePacket); // Schedule the duplication event with the specified delay
+
+        duplicatedMsgs.emplace_back(duplicatePacket); // Add the duplicate packet to the duplicated messages vector
+    }
+
+    printPacketSent(simTime(), packet, trailer, modificationIndex, isLoss, duplicationType, isDelay); // Log the event
+    sendPacket(packet, delay, isLoss);                                                                // Send the packet with the specified delay
 
     this->index++; // Increment the index
 }
-/// Message handling functions
+
+/* Message handling method */
 void Node::handleMessage(cMessage *msg)
 {
     // Cast the message to Packet_Base
-    Packet_Base *packet = check_and_cast<Packet_Base *>(msg->dup());
+    Packet_Base *packet = check_and_cast<Packet_Base *>(msg);
 
+    // If the message is a self message (scheduled message)
     if (packet->isSelfMessage())
     {
-
-        // receiver ready to send a packet
-        // and prepare for the next packet
-        if (strcmp(packet->getName(), "processing finished") == 0)
+        // Check if the message indicates the end of the processing
+        if (strcmp(packet->getName(), PROCESS_PACKET) == 0)
         {
+            // If so, send the packet
             handleSending(packet);
 
             // if the window is full, then return
             // will be blocked until the next ack is received
             if (this->index >= data.size() || this->index >= start + WS)
-            {
-                // get the timeouts
-                int t = 0;
-                for (int i = 0; i < WS; i++)
-                {
-                    if (timeoutMsgs[i] != nullptr)
-                        t++;
-                }
-
                 return;
-            }
-
-            delayPacket("processing finished", PT);
 
             if (!read[this->index])
             {
-                outputFile << "At [" << simTime() << "], Node [" << nodeIndex << "], Introducing channel error with code =[" << data[this->index].first << "]" << endl;
-                EV << "At [" << simTime() << "], Node [" << nodeIndex << "], Introducing channel error with code =[" << data[this->index].first << "]" << endl;
                 read[this->index] = true;
+                printPacketRead(simTime());
             }
+
+            notifyAfter(PROCESS_PACKET, PT);
         }
-        else if (strcmp(packet->getName(), "send ack") == 0)
+        else if (strcmp(packet->getName(), SEND_ACK) == 0)
         {
-            sendAck(packet);
+            sendControlPacket(packet, ACK_SIGNAL);
         }
-        else if (strcmp(packet->getName(), "send nack") == 0)
+        else if (strcmp(packet->getName(), SEND_NACK) == 0)
         {
-            sendNAck(packet);
+            sendControlPacket(packet, NACK_SIGNAL);
         }
-        // timeout
         else
         {
             std::string packetStr = packet->getName();
             char event = packetStr[0];
-            int currIndex = std::stoi(packetStr.substr(1, packetStr.size() - 1));
-            if (event == 'T')
+            int currentIndex = std::stoi(packetStr.substr(1, packetStr.size() - 1));
+            if (event == TIMEOUT)
             {
-                // resend all packets in the window again
-                this->index = currIndex;
-                data[this->index].first = "0000";
-                outputFile << "Time out event at time [" << simTime() << "], at Node[" << nodeIndex << "] for frame with seq_num=[" << currIndex % WS << "]" << endl;
-                EV << "Time out event at time [" << simTime() << "], at Node[" << nodeIndex << "] for frame with seq_num=[" << currIndex % WS << "]" << endl;
+                // Resend all packets in the window again
+                this->index = currentIndex;
+                data[this->index].first = "0000"; // Reset the error flags
+                printPacketTimedOut(simTime(), currentIndex % WS);
 
-                // remove all the timeout messages
+                // Remove all the timeout messages
                 for (int i = 0; i < WS; i++)
                 {
                     cancelAndDelete(timeoutMsgs[i]);
                 }
 
-                delayPacket("processing finished", PT);
+                notifyAfter(PROCESS_PACKET, PT);
             }
-            else if (event == 'D')
+            else if (event == DUPLICATION)
             {
-                std::string err = data[currIndex].first;
+                std::string err = data[currentIndex].first;
                 bool isDelay = err[3] == '1';
                 bool isLoss = err[1] == '1';
                 bool isModification = err[0] == '1';
-                std::bitset<4> trailer(packet->getTrailer());
 
                 double delay = TD;
+                int modificationIndex = isModification ? 1 : -1;
+                int duplicationType = 2;
+
+                packet->setHeader(currentIndex % WS);
+                std::bitset<4> trailer(packet->getTrailer());
+
                 if (isDelay)
-                {
-                    delay += ED;
-                }
-                if (isModification)
-                {
-                    std::string m_message = data[this->index].second;
+                    delay += ED; // Add the error delay to the delay variable
 
-                    // change one bit in the message
-                    m_message[0] = m_message[0] ^ 1;
+                printPacketSent(simTime(), packet, trailer, modificationIndex, isLoss, duplicationType, isDelay);
 
-                    packet->setPayload((framing(m_message)).c_str());
-                }
-
-                packet = createPacket(packet, data[currIndex].second);
-                packet->setHeader(currIndex % WS);
-                log(simTime(), trailer, packet, isModification, isLoss, 2, isDelay);
-                sendDelayed(packet, delay, NODE_OUTPUT);
+                if (!isLoss)
+                    sendDelayed(packet, delay, NODE_OUTPUT);
             }
         }
 
@@ -432,51 +430,78 @@ void Node::handleMessage(cMessage *msg)
     // If the message is the start signal
     if (strcmp(packet->getPayload(), START_SIGNAL) == 0)
     {
-
         readFileMsg(); // Read the messages from the input file
-        read[0] = true;
-        outputFile << "At [" << simTime() << "], Node [" << nodeIndex << "], Introducing channel error with code =[" << data[0].first << "]" << endl;
-        EV << "At [" << simTime() << "], Node [" << nodeIndex << "], Introducing channel error with code =[" << data[0].first << "]" << endl;
-        delayPacket("processing finished", PT);
+        read[this->index] = true;
+        printPacketRead(simTime());
+        notifyAfter(PROCESS_PACKET, PT);
+        cancelAndDelete(packet);
     }
-    // Logic for the receiving node in the receiver from sender
+    // Logic for the receiving node
     else if (packet->getFrame_type() == DATA_SIGNAL)
     {
         int seqNum = packet->getHeader();
-        if (seqNum > expectedSeqNum)
+
+        // Ignore the packet if it is greater than the expected one (out of order)
+        if (seqNum > this->expectedSeqNum)
             return;
 
         int parity = receivePacket(packet);
 
-        // modified message
+        // If the parity is -1, then the packet is modified
         if (parity == -1)
         {
-            delayPacket("send nack", PT, expectedSeqNum);
+            // Send NACK and return
+            notifyAfter(SEND_NACK, PT, this->expectedSeqNum);
             return;
         }
-        // ack for new msg
-        if (seqNum == expectedSeqNum)
+
+        // If the sequence number is the expected one
+        if (seqNum == this->expectedSeqNum)
         {
             // Increment the expected sequence number
-            expectedSeqNum++;
-            expectedSeqNum %= WS;
-            delayPacket("send ack", PT, expectedSeqNum);
+            this->expectedSeqNum = (this->expectedSeqNum + 1) % WS;
+
+            notifyAfter(SEND_ACK, PT, this->expectedSeqNum);
         }
-        // send ack again for the same msg
-        else
+        else // If the sequence number is less than the expected one
         {
-            delayPacket("send ack", PT, (seqNum + 1) % WS);
+            // Send ACK for the next expected sequence number
+            notifyAfter(SEND_ACK, PT, (seqNum + 1) % WS);
         }
     }
-    // Logic for sending receiving ACK from receiver to sender
+    // Logic for sending node when receiving ACK from receiver
     else if (packet->getFrame_type() == ACK_SIGNAL)
     {
-        if (!receiveAck(packet)) // Receive the ACK signal
+        // If the ACK is not valid, return
+        if (!receiveAck(packet))
             return;
     }
 }
 
+/* Session termination method */
 void Node::finish()
 {
+    EV << "End of simulation" << endl;
+
+    for (auto packet : processedMsgs)
+    {
+        cancelAndDelete(packet);
+    }
+
+    for (auto packet : duplicatedMsgs)
+    {
+        cancelAndDelete(packet);
+    }
+
+    for (auto packet : timeoutMsgs)
+    {
+        cancelAndDelete(packet);
+    }
+
+    for (auto packet : controlMsgs)
+    {
+        cancelAndDelete(packet);
+    }
+
     outputFile.close();
 }

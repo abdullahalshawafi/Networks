@@ -23,7 +23,7 @@ private:
     double DD; // channel duplication delay
     double LP; // ACK/NACK loss probability
 
-    // node index
+    // Index of the node (0 or 1)
     int nodeIndex;
 
     // output file path
@@ -41,37 +41,49 @@ private:
     // A pointer to the index of the message that should be sent
     int index = 0;
 
-    std::vector<bool> read;
-
     // Start of window
     int start = 0;
 
     // Expected sequence number
     int expectedSeqNum = 0;
 
-    // create a vector for timeout messages
+    // A vector of boolean flags to indicate if a packet has been received or not
+    std::vector<bool> read;
+
+    // Vector for processed messages
+    std::vector<Packet_Base *> processedMsgs;
+
+    // Vector for duplicated messages
+    std::vector<Packet_Base *> duplicatedMsgs;
+
+    // Vector for timeout messages
     std::vector<Packet_Base *> timeoutMsgs;
 
+    // Vector for control messages
+    std::vector<Packet_Base *> controlMsgs;
+
+    // Number of received packets
     int receivedCount = 0;
 
 protected:
     virtual void initialize();
-    virtual void finish();
     virtual void handleMessage(cMessage *msg);
+    virtual void finish();
     void readFileMsg();
     std::string framing(std::string payload);
     char getParity(std::string frame);
-    Packet_Base *createPacket(Packet_Base *oldPacket, std::string newPayload);
-    void sendPacket(Packet_Base *packet, double delay, bool lost);
-    int receivePacket(Packet_Base *packet);
     bool checkParity(std::string frame, char expectedParity);
-    void sendAck(Packet_Base *packet);
-    void sendNAck(Packet_Base *packet);
+    Packet_Base *createPacket(Packet_Base *packet, std::string newPayload);
+    void sendPacket(Packet_Base *packet, double delay, bool isLost);
+    int receivePacket(Packet_Base *packet);
+    void sendControlPacket(Packet_Base *packet, short signal);
     bool receiveAck(Packet_Base *packet);
-    void checkTimeout(int msgIndex);
-    void delayPacket(std::string event, double delay, int expectedSeqNum);
+    void notifyAfter(std::string event, double delay, int ack);
     void handleSending(Packet_Base *packet);
-    void log(omnetpp::simtime_t time, std::bitset<4> trailer, Packet_Base *packet, bool isModification, bool isLoss, int isDuplication, bool isDelay);
+    void printPacketRead(omnetpp::simtime_t time);
+    void printPacketSent(omnetpp::simtime_t time, Packet_Base *packet, std::bitset<4> trailer, int modificationIndex, bool isLost, int duplicationType, bool isDelayed);
+    void printPacketTimedOut(omnetpp::simtime_t time, int seqNum);
+    void printControlPacketSent(omnetpp::simtime_t time, Packet_Base *packet, bool isLost);
 };
 
 #endif
