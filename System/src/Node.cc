@@ -441,14 +441,10 @@ void Node::handleMessage(cMessage *msg)
     {
         int seqNum = packet->getHeader();
 
-        // Ignore the packet if it is greater than the expected one (out of order)
-        if (seqNum > this->expectedSeqNum)
-            return;
+        int receivedSeqNum = receivePacket(packet);
 
-        int parity = receivePacket(packet);
-
-        // If the parity is -1, then the packet is modified
-        if (parity == -1)
+        // If the receivedSeqNum is -1, then the packet is modified
+        if (receivedSeqNum == -1)
         {
             // Send NACK and return
             notifyAfter(SEND_NACK, PT, this->expectedSeqNum);
